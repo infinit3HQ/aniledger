@@ -33,6 +33,7 @@ struct DiscoverView: View {
                     }
                 )
                 .padding(.horizontal)
+                .padding(.leading, 10)
                 
                 if viewModel.isLoading {
                     VStack(spacing: 24) {
@@ -89,7 +90,9 @@ struct DiscoverView: View {
                 }
             }
             .padding(.vertical)
+            .padding(.leading, 10)
         }
+        .background(Color(nsColor: .windowBackgroundColor))
         .navigationTitle("Discover")
         .onAppear {
             if viewModel.currentSeasonAnime.isEmpty && 
