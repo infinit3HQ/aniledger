@@ -33,7 +33,7 @@ struct AniLedgerApp: App {
         // Initialize dependencies
         let keychainManager = KeychainManager()
         let apiClient = AniListAPIClient(session: .shared) {
-            try? keychainManager.retrieve(for: "anilist_access_token")
+            try? keychainManager.retrieve(for: Config.keychainAccessTokenKey)
         }
         
         // Initialize authentication service
@@ -76,8 +76,9 @@ struct AniLedgerApp: App {
             .onAppear {
                 performAutoSyncIfEnabled()
             }
-            .onChange(of: authenticationService.isAuthenticated) { _, isAuthenticated in
-                if isAuthenticated {
+            .onChange(of: authenticationService.currentUser) { _, currentUser in
+                // Only trigger auto-sync when user profile is loaded
+                if currentUser != nil && authenticationService.isAuthenticated {
                     performAutoSyncIfEnabled()
                 }
             }

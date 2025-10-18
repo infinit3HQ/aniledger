@@ -157,7 +157,7 @@ class DiscoverViewModel: ObservableObject {
             medium: mediaResponse.coverImage.medium
         )
         
-        let format = AnimeFormat(rawValue: mediaResponse.format) ?? .tv
+        let format = AnimeFormat(rawValue: mediaResponse.format ?? "") ?? .tv
         
         return Anime(
             id: mediaResponse.id,

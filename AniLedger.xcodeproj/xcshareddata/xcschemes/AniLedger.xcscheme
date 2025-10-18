@@ -56,6 +56,11 @@
             value = "31238"
             isEnabled = "YES">
          </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "ANILIST_CLIENT_SECRET"
+            value = "itRYaikFCxEHUBoNrDofGJ5r2DARTelI5xn1FIqd"
+            isEnabled = "YES">
+         </EnvironmentVariable>
       </EnvironmentVariables>
    </LaunchAction>
    <ProfileAction

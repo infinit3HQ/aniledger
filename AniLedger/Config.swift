@@ -24,35 +24,31 @@ enum Config {
     /// 3. Go to the "Arguments" tab
     /// 4. Under "Environment Variables", click the "+" button
     /// 5. Add: Name = `ANILIST_CLIENT_ID`, Value = `your_actual_client_id`
-    /// 6. Click "Close"
+    /// 6. Add: Name = `ANILIST_CLIENT_SECRET`, Value = `your_actual_client_secret`
+    /// 7. Click "Close"
     ///
     /// **Method 2 - Shell Environment Variable (For Terminal/CI):**
     /// ```bash
     /// export ANILIST_CLIENT_ID="your_actual_client_id"
+    /// export ANILIST_CLIENT_SECRET="your_actual_client_secret"
     /// ```
     ///
     /// **Method 3 - .env file (Alternative):**
     /// 1. Create a `.env` file in the project root (it's gitignored)
     /// 2. Add: `ANILIST_CLIENT_ID=your_actual_client_id`
-    /// 3. Source it before running: `source .env && open AniLedger.xcodeproj`
+    /// 3. Add: `ANILIST_CLIENT_SECRET=your_actual_client_secret`
+    /// 4. Source it before running: `source .env && open AniLedger.xcodeproj`
     /// 
-    /// **Get Your Client ID:**
+    /// **Get Your Client ID and Secret:**
     /// 1. Go to https://anilist.co/settings/developer
     /// 2. Create a new API Client
     /// 3. Set the redirect URI to: `aniledger://auth-callback`
-    /// 4. Copy the Client ID (NOT the Client Secret - see note below)
+    /// 4. Copy both the Client ID and Client Secret
     ///
     /// **Note about Client Secret:**
-    /// AniList provides both a Client ID and Client Secret when you create an API client.
-    /// However, for native/desktop applications like AniLedger, you should ONLY use the Client ID.
-    /// 
-    /// Why we don't use Client Secret:
-    /// - Native apps cannot securely store secrets (they can be extracted via reverse engineering)
-    /// - AniList's OAuth works without client secret for native apps using Authorization Code flow
-    /// - Client secrets are only for server-side applications where they can be kept secure
-    /// - Using client secret in a native app provides no additional security
-    ///
-    /// The current implementation correctly uses only the Client ID.
+    /// AniList requires the client secret for the token exchange step of OAuth.
+    /// While native apps cannot perfectly secure secrets, AniList's OAuth flow requires it.
+    /// This is a limitation of AniList's OAuth implementation.
     static var aniListClientId: String {
         // Read from environment variable
         if let envClientId = ProcessInfo.processInfo.environment["ANILIST_CLIENT_ID"],
@@ -64,6 +60,20 @@ enum Config {
         // Fallback placeholder (will trigger validation warning)
         // DO NOT replace this with your actual client ID in a public repository!
         return "YOUR_CLIENT_ID_HERE"
+    }
+    
+    /// AniList OAuth Client Secret
+    /// Required for token exchange in AniList's OAuth flow
+    static var aniListClientSecret: String {
+        // Read from environment variable
+        if let envClientSecret = ProcessInfo.processInfo.environment["ANILIST_CLIENT_SECRET"],
+           !envClientSecret.isEmpty,
+           envClientSecret != "YOUR_CLIENT_SECRET_HERE" {
+            return envClientSecret
+        }
+        
+        // Fallback placeholder (will trigger validation warning)
+        return "YOUR_CLIENT_SECRET_HERE"
     }
     
     /// OAuth Redirect URI - must match the one registered in AniList developer settings

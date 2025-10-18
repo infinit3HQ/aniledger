@@ -58,7 +58,7 @@ class SettingsViewModel: ObservableObject {
     
     init(
         authenticationService: AuthenticationServiceProtocol,
-        coreDataStack: CoreDataStack = .shared,
+        coreDataStack: CoreDataStack,
         syncService: SyncServiceProtocol? = nil
     ) {
         self.authenticationService = authenticationService

@@ -7,13 +7,13 @@
 
 import Foundation
 
-struct AniListUser: Codable {
+struct AniListUser: Codable, Equatable {
     let id: Int
     let name: String
     let avatar: UserAvatar?
 }
 
-struct UserAvatar: Codable {
+struct UserAvatar: Codable, Equatable {
     let large: String?
     let medium: String?
 }

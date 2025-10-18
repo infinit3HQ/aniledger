@@ -32,6 +32,7 @@ class AuthenticationService: NSObject, AuthenticationServiceProtocol, Observable
     
     // OAuth Configuration - using Config constants
     private let clientId = Config.aniListClientId
+    private let clientSecret = Config.aniListClientSecret
     private let redirectUri = Config.redirectUri
     private let authorizationEndpoint = Config.authorizationUrl
     private let tokenEndpoint = "https://anilist.co/api/v2/oauth/token"
@@ -56,10 +57,20 @@ class AuthenticationService: NSObject, AuthenticationServiceProtocol, Observable
     private func checkAuthenticationState() {
         do {
             if let token = try keychainManager.retrieve(for: accessTokenKey), !token.isEmpty {
-                isAuthenticated = true
-                // Fetch user profile in background
+                // Fetch user profile in background BEFORE setting isAuthenticated
                 Task {
-                    try? await fetchUserProfile()
+                    do {
+                        try await fetchUserProfile()
+                        await MainActor.run {
+                            isAuthenticated = true
+                        }
+                    } catch {
+                        // If profile fetch fails, still mark as authenticated
+                        // User can retry sync manually
+                        await MainActor.run {
+                            isAuthenticated = true
+                        }
+                    }
                 }
             }
         } catch {
@@ -87,13 +98,14 @@ class AuthenticationService: NSObject, AuthenticationServiceProtocol, Observable
         // Store token in keychain
         try keychainManager.save(token: token.accessToken, for: accessTokenKey)
         
+        // Fetch user profile BEFORE setting isAuthenticated
+        // This ensures currentUser is populated before any auto-sync attempts
+        try await fetchUserProfile()
+        
         // Update authentication state
         await MainActor.run {
             isAuthenticated = true
         }
-        
-        // Fetch user profile
-        try await fetchUserProfile()
         
         return token
     }
@@ -188,11 +200,16 @@ class AuthenticationService: NSObject, AuthenticationServiceProtocol, Observable
         let body: [String: Any] = [
             "grant_type": "authorization_code",
             "client_id": clientId,
+            "client_secret": clientSecret,
             "redirect_uri": redirectUri,
             "code": code
         ]
         
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        print("🔄 Exchanging authorization code for token...")
+        print("📤 Request URL: \(tokenEndpoint)")
+        print("📤 Request body: \(body)")
         
         let (data, response) = try await URLSession.shared.data(for: request)
         
@@ -200,11 +217,19 @@ class AuthenticationService: NSObject, AuthenticationServiceProtocol, Observable
             throw KiroError.invalidResponse
         }
         
-        guard httpResponse.statusCode == 200 else {
+        print("📥 Response status code: \(httpResponse.statusCode)")
+        
+        if httpResponse.statusCode != 200 {
+            // Try to parse error response
+            if let errorString = String(data: data, encoding: .utf8) {
+                print("❌ Error response: \(errorString)")
+            }
             throw KiroError.apiError(message: "Token exchange failed", statusCode: httpResponse.statusCode)
         }
         
         let tokenResponse = try JSONDecoder().decode(TokenResponse.self, from: data)
+        
+        print("✅ Successfully received access token")
         
         return AuthToken(
             accessToken: tokenResponse.access_token,
@@ -219,16 +244,9 @@ class AuthenticationService: NSObject, AuthenticationServiceProtocol, Observable
     /// - Throws: KiroError if fetch fails
     private func fetchUserProfile() async throws {
         let query = FetchUserProfileQuery()
-        let response: GraphQLResponse<ViewerResponse> = try await apiClient.execute(query: query)
+        let response: ViewerResponse = try await apiClient.execute(query: query)
         
-        guard let data = response.data else {
-            if let errors = response.errors, let firstError = errors.first {
-                throw KiroError.apiError(message: firstError.message, statusCode: firstError.status)
-            }
-            throw KiroError.invalidResponse
-        }
-        
-        let userResponse = data.Viewer
+        let userResponse = response.Viewer
         let user = AniListUser(
             id: userResponse.id,
             name: userResponse.name,

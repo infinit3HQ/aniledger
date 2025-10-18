@@ -399,7 +399,7 @@ class SyncService: SyncServiceProtocol {
             medium: media.coverImage.medium
         )
         
-        let format = AnimeFormat(rawValue: media.format) ?? .tv
+        let format = AnimeFormat(rawValue: media.format ?? "") ?? .tv
         
         return Anime(
             id: media.id,

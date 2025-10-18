@@ -54,7 +54,7 @@ struct MediaResponse: Decodable {
     let title: TitleResponse
     let coverImage: CoverImageResponse
     let episodes: Int?
-    let format: String
+    let format: String?
     let genres: [String]
     let description: String?
     let siteUrl: String
