@@ -109,13 +109,18 @@ struct LibraryView: View {
         .frame(maxWidth: .infinity)
     }
     
-    // MARK: - List View
+    // MARK: - Grid View
     
     private var listView: some View {
         ScrollView {
-            LazyVStack(spacing: 12) {
+            LazyVGrid(
+                columns: [
+                    GridItem(.adaptive(minimum: 160, maximum: 200), spacing: 20)
+                ],
+                spacing: 24
+            ) {
                 ForEach(currentList) { anime in
-                    AnimeListItemView(userAnime: anime)
+                    AnimeLibraryCardView(userAnime: anime, width: 160)
                         .contentShape(Rectangle())
                         .onTapGesture {
                             HapticFeedback.selection.trigger()
@@ -134,7 +139,7 @@ struct LibraryView: View {
                         ))
                 }
             }
-            .padding()
+            .padding(20)
             .animation(.spring(response: 0.3, dampingFraction: 0.8), value: currentList.count)
         }
         .refreshable {
@@ -151,12 +156,17 @@ struct LibraryView: View {
     
     private var skeletonLoadingView: some View {
         ScrollView {
-            LazyVStack(spacing: 12) {
-                ForEach(0..<5, id: \.self) { _ in
-                    AnimeListItemSkeleton()
+            LazyVGrid(
+                columns: [
+                    GridItem(.adaptive(minimum: 160, maximum: 200), spacing: 20)
+                ],
+                spacing: 24
+            ) {
+                ForEach(0..<8, id: \.self) { _ in
+                    AnimeLibraryCardSkeleton()
                 }
             }
-            .padding()
+            .padding(20)
         }
     }
     
@@ -278,6 +288,55 @@ struct LibraryView: View {
             animeService: animeService,
             syncService: syncService
         )
+    }
+}
+
+// MARK: - Anime Library Card Skeleton
+
+struct AnimeLibraryCardSkeleton: View {
+    @State private var isAnimating = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Cover Image Skeleton
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.gray.opacity(0.3))
+                .frame(width: 160, height: 240)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color.clear,
+                                    Color.white.opacity(0.3),
+                                    Color.clear
+                                ]),
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .offset(x: isAnimating ? 200 : -200)
+                )
+                .clipped()
+            
+            // Title Skeleton
+            VStack(alignment: .leading, spacing: 4) {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(width: 140, height: 12)
+                
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(width: 100, height: 10)
+            }
+            .padding(.top, 8)
+        }
+        .frame(width: 160)
+        .onAppear {
+            withAnimation(Animation.linear(duration: 1.5).repeatForever(autoreverses: false)) {
+                isAnimating = true
+            }
+        }
     }
 }
 
