@@ -10,7 +10,6 @@ import SwiftUI
 struct SearchView: View {
     @StateObject private var viewModel: SearchViewModel
     @State private var selectedAnime: Anime?
-    @State private var showingAnimeDetail = false
     
     private let animeService: AnimeServiceProtocol
     private let syncService: SyncServiceProtocol
@@ -32,10 +31,10 @@ struct SearchView: View {
             contentArea
         }
         .navigationTitle("Search")
-        .sheet(isPresented: $showingAnimeDetail) {
-            if let anime = selectedAnime {
-                AnimeDetailView(viewModel: createDetailViewModel(for: anime))
-            }
+        .sheet(item: $selectedAnime) { anime in
+            AnimeDetailView(viewModel: createDetailViewModel(for: anime))
+                .frame(minWidth: 600, idealWidth: 600, maxWidth: 600,
+                       minHeight: 700, idealHeight: 700, maxHeight: 700)
         }
         .alert("Error", isPresented: .constant(viewModel.error != nil)) {
             Button("OK") {
@@ -149,7 +148,6 @@ struct SearchView: View {
                         .onTapGesture {
                             HapticFeedback.selection.trigger()
                             selectedAnime = anime
-                            showingAnimeDetail = true
                         }
                         .transition(.asymmetric(
                             insertion: .move(edge: .leading).combined(with: .opacity),

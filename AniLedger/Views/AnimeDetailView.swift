@@ -54,7 +54,8 @@ struct AnimeDetailView: View {
                 .padding(24)
             }
         }
-        .frame(width: 600, height: 700)
+        .frame(minWidth: 600, idealWidth: 600, maxWidth: 600,
+               minHeight: 700, idealHeight: 700, maxHeight: 700)
         .background(Color(nsColor: .windowBackgroundColor))
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: viewModel.isInLibrary)
         .alert("Complete Anime?", isPresented: $viewModel.showCompletionPrompt) {

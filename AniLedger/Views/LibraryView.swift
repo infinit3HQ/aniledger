@@ -16,7 +16,6 @@ struct LibraryView: View {
     
     @State private var selectedStatus: AnimeStatus = .watching
     @State private var selectedAnime: UserAnime?
-    @State private var showAnimeDetail = false
     @State private var draggedAnime: UserAnime?
     
     var body: some View {
@@ -52,10 +51,10 @@ struct LibraryView: View {
                 .help("Sync with AniList")
             }
         }
-        .sheet(isPresented: $showAnimeDetail) {
-            if let anime = selectedAnime {
-                AnimeDetailView(viewModel: createDetailViewModel(for: anime))
-            }
+        .sheet(item: $selectedAnime) { anime in
+            AnimeDetailView(viewModel: createDetailViewModel(for: anime))
+                .frame(minWidth: 600, idealWidth: 600, maxWidth: 600,
+                       minHeight: 700, idealHeight: 700, maxHeight: 700)
         }
         .onAppear {
             viewModel.loadLists()
@@ -121,7 +120,6 @@ struct LibraryView: View {
                         .onTapGesture {
                             HapticFeedback.selection.trigger()
                             selectedAnime = anime
-                            showAnimeDetail = true
                         }
                         .contextMenu {
                             contextMenuItems(for: anime)
@@ -214,7 +212,6 @@ struct LibraryView: View {
     private func contextMenuItems(for anime: UserAnime) -> some View {
         Button(action: {
             selectedAnime = anime
-            showAnimeDetail = true
         }) {
             Label("View Details", systemImage: "info.circle")
         }

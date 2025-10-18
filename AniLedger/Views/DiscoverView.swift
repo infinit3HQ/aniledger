@@ -10,7 +10,6 @@ import SwiftUI
 struct DiscoverView: View {
     @StateObject private var viewModel: DiscoverViewModel
     @State private var selectedAnime: Anime?
-    @State private var showingAnimeDetail = false
     
     private let animeService: AnimeServiceProtocol
     private let syncService: SyncServiceProtocol
@@ -57,7 +56,6 @@ struct DiscoverView: View {
                             onAnimeTap: { anime in
                                 HapticFeedback.selection.trigger()
                                 selectedAnime = anime
-                                showingAnimeDetail = true
                             }
                         )
                         .transition(.move(edge: .leading).combined(with: .opacity))
@@ -69,7 +67,6 @@ struct DiscoverView: View {
                             onAnimeTap: { anime in
                                 HapticFeedback.selection.trigger()
                                 selectedAnime = anime
-                                showingAnimeDetail = true
                             }
                         )
                         .transition(.move(edge: .leading).combined(with: .opacity))
@@ -81,7 +78,6 @@ struct DiscoverView: View {
                             onAnimeTap: { anime in
                                 HapticFeedback.selection.trigger()
                                 selectedAnime = anime
-                                showingAnimeDetail = true
                             }
                         )
                         .transition(.move(edge: .leading).combined(with: .opacity))
@@ -109,10 +105,10 @@ struct DiscoverView: View {
         .onAppear {
             viewModel.loadDiscoverContent()
         }
-        .sheet(isPresented: $showingAnimeDetail) {
-            if let anime = selectedAnime {
-                AnimeDetailView(viewModel: createDetailViewModel(for: anime))
-            }
+        .sheet(item: $selectedAnime) { anime in
+            AnimeDetailView(viewModel: createDetailViewModel(for: anime))
+                .frame(minWidth: 600, idealWidth: 600, maxWidth: 600,
+                       minHeight: 700, idealHeight: 700, maxHeight: 700)
         }
     }
     
