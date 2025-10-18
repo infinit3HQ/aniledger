@@ -20,6 +20,10 @@ class LibraryViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var error: KiroError?
     
+    // MARK: - Private Properties
+    
+    private var hasLoadedOnce = false
+    
     // MARK: - Dependencies
     
     private let animeService: AnimeServiceProtocol
@@ -36,7 +40,12 @@ class LibraryViewModel: ObservableObject {
     // MARK: - Load Lists
     
     /// Loads all anime lists from Core Data
-    func loadLists() {
+    func loadLists(forceRefresh: Bool = false) {
+        // Skip if already loaded and not forcing refresh
+        if hasLoadedOnce && !forceRefresh {
+            return
+        }
+        
         isLoading = true
         error = nil
         
@@ -49,6 +58,7 @@ class LibraryViewModel: ObservableObject {
                 onHoldList = try animeService.fetchAnimeByStatus(.onHold)
                 droppedList = try animeService.fetchAnimeByStatus(.dropped)
                 
+                hasLoadedOnce = true
                 isLoading = false
             } catch let kiroError as KiroError {
                 error = kiroError
@@ -79,7 +89,7 @@ class LibraryViewModel: ObservableObject {
                 try await syncService.processSyncQueue()
                 
                 // Reload lists to reflect changes
-                loadLists()
+                loadLists(forceRefresh: true)
             } catch let kiroError as KiroError {
                 error = kiroError
                 isLoading = false
@@ -136,7 +146,7 @@ class LibraryViewModel: ObservableObject {
                 syncService.queueOperation(.deleteEntry(mediaId: anime.anime.id))
                 
                 // Reload lists to reflect changes
-                loadLists()
+                loadLists(forceRefresh: true)
             } catch let kiroError as KiroError {
                 error = kiroError
                 isLoading = false
@@ -163,7 +173,7 @@ class LibraryViewModel: ObservableObject {
                 try await syncService.syncUserLists()
                 
                 // Reload lists to reflect synced changes
-                loadLists()
+                loadLists(forceRefresh: true)
             } catch let kiroError as KiroError {
                 error = kiroError
                 isLoading = false

@@ -94,12 +94,20 @@ struct DiscoverView: View {
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .navigationTitle("Discover")
-        .onAppear {
-            if viewModel.currentSeasonAnime.isEmpty && 
-               viewModel.upcomingAnime.isEmpty && 
-               viewModel.trendingAnime.isEmpty {
-                viewModel.loadDiscoverContent()
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    HapticFeedback.selection.trigger()
+                    viewModel.refresh()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .disabled(viewModel.isLoading)
+                .help("Refresh content")
             }
+        }
+        .onAppear {
+            viewModel.loadDiscoverContent()
         }
         .sheet(isPresented: $showingAnimeDetail) {
             if let anime = selectedAnime {

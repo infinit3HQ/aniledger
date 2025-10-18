@@ -21,6 +21,7 @@ class SearchViewModel: ObservableObject {
     
     private let apiClient: AniListAPIClientProtocol
     private let animeService: AnimeServiceProtocol
+    private let cacheManager = CacheManager.shared
     private var cancellables = Set<AnyCancellable>()
     
     // MARK: - Initialization
@@ -63,6 +64,13 @@ class SearchViewModel: ObservableObject {
             return
         }
         
+        // Check cache first
+        let cacheKey = "search.\(query.lowercased())"
+        if let cached: [Anime] = cacheManager.get(forKey: cacheKey) {
+            searchResults = cached
+            return
+        }
+        
         isLoading = true
         error = nil
         
@@ -71,7 +79,12 @@ class SearchViewModel: ObservableObject {
             let response: PageResponse = try await apiClient.execute(query: searchQuery)
             
             // Convert MediaResponse to Anime
-            searchResults = response.Page.media.map { convertToAnime($0) }
+            let results = response.Page.media.map { convertToAnime($0) }
+            searchResults = results
+            
+            // Cache results for 10 minutes
+            cacheManager.set(results, forKey: cacheKey, expirationInterval: 600)
+            
             isLoading = false
         } catch let kiroError as KiroError {
             error = kiroError

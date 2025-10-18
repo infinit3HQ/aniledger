@@ -43,11 +43,13 @@ struct LibraryView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button(action: {
+                    HapticFeedback.selection.trigger()
                     viewModel.sync()
                 }) {
                     Label("Sync", systemImage: "arrow.triangle.2.circlepath")
                 }
                 .disabled(viewModel.isLoading)
+                .help("Sync with AniList")
             }
         }
         .sheet(isPresented: $showAnimeDetail) {
@@ -56,13 +58,7 @@ struct LibraryView: View {
             }
         }
         .onAppear {
-            if viewModel.watchingList.isEmpty &&
-               viewModel.completedList.isEmpty &&
-               viewModel.planToWatchList.isEmpty &&
-               viewModel.onHoldList.isEmpty &&
-               viewModel.droppedList.isEmpty {
-                viewModel.loadLists()
-            }
+            viewModel.loadLists()
         }
     }
     
@@ -144,7 +140,7 @@ struct LibraryView: View {
             .animation(.spring(response: 0.3, dampingFraction: 0.8), value: currentList.count)
         }
         .refreshable {
-            viewModel.sync()
+            await viewModel.sync()
         }
         .onDrop(of: [.text], delegate: AnimeDropDelegate(
             status: selectedStatus,

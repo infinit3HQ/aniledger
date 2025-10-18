@@ -25,11 +25,13 @@ class DiscoverViewModel: ObservableObject {
     private var allCurrentSeasonAnime: [Anime] = []
     private var allUpcomingAnime: [Anime] = []
     private var allTrendingAnime: [Anime] = []
+    private var isInitialLoad = true
     
     // MARK: - Dependencies
     
     private let apiClient: AniListAPIClientProtocol
     private let animeService: AnimeServiceProtocol
+    private let cacheManager = CacheManager.shared
     private var cancellables = Set<AnyCancellable>()
     
     // MARK: - Initialization
@@ -37,12 +39,40 @@ class DiscoverViewModel: ObservableObject {
     init(apiClient: AniListAPIClientProtocol, animeService: AnimeServiceProtocol) {
         self.apiClient = apiClient
         self.animeService = animeService
+        loadFromCache()
     }
     
     // MARK: - Load Discover Content
     
+    /// Loads cached data immediately if available
+    private func loadFromCache() {
+        if let cached: [Anime] = cacheManager.get(forKey: CacheManager.CacheKey.currentSeason) {
+            allCurrentSeasonAnime = cached
+        }
+        if let cached: [Anime] = cacheManager.get(forKey: CacheManager.CacheKey.upcoming) {
+            allUpcomingAnime = cached
+        }
+        if let cached: [Anime] = cacheManager.get(forKey: CacheManager.CacheKey.trending) {
+            allTrendingAnime = cached
+        }
+        
+        // Apply filters to cached data
+        if !allCurrentSeasonAnime.isEmpty || !allUpcomingAnime.isEmpty || !allTrendingAnime.isEmpty {
+            applyFilters()
+            isInitialLoad = false
+        }
+    }
+    
     /// Loads all discover content: current season, upcoming, and trending anime
-    func loadDiscoverContent() {
+    func loadDiscoverContent(forceRefresh: Bool = false) {
+        // If we have cached data and not forcing refresh, skip loading
+        if !forceRefresh && !isInitialLoad && 
+           cacheManager.hasValidCache(forKey: CacheManager.CacheKey.currentSeason) &&
+           cacheManager.hasValidCache(forKey: CacheManager.CacheKey.upcoming) &&
+           cacheManager.hasValidCache(forKey: CacheManager.CacheKey.trending) {
+            return
+        }
+        
         isLoading = true
         error = nil
         
@@ -60,10 +90,16 @@ class DiscoverViewModel: ObservableObject {
                 allUpcomingAnime = upcomingResult
                 allTrendingAnime = trendingResult
                 
+                // Cache the results (5 minutes expiration)
+                cacheManager.set(currentSeasonResult, forKey: CacheManager.CacheKey.currentSeason, expirationInterval: 300)
+                cacheManager.set(upcomingResult, forKey: CacheManager.CacheKey.upcoming, expirationInterval: 300)
+                cacheManager.set(trendingResult, forKey: CacheManager.CacheKey.trending, expirationInterval: 300)
+                
                 // Apply any active filters
                 applyFilters()
                 
                 isLoading = false
+                isInitialLoad = false
             } catch let kiroError as KiroError {
                 error = kiroError
                 isLoading = false
@@ -72,6 +108,14 @@ class DiscoverViewModel: ObservableObject {
                 isLoading = false
             }
         }
+    }
+    
+    /// Refresh content by clearing cache and reloading
+    func refresh() {
+        cacheManager.clear(forKey: CacheManager.CacheKey.currentSeason)
+        cacheManager.clear(forKey: CacheManager.CacheKey.upcoming)
+        cacheManager.clear(forKey: CacheManager.CacheKey.trending)
+        loadDiscoverContent(forceRefresh: true)
     }
     
     // MARK: - Apply Filters

@@ -8,7 +8,6 @@
 
 /* Begin PBXFileReference section */
 		F05E9DF52E9D3B670050CAAF /* AniLedger.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AniLedger.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		F05E9E032E9D3B690050CAAF /* AniLedger.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AniLedger.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
