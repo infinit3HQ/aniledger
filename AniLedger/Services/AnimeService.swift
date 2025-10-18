@@ -35,7 +35,7 @@ class AnimeService: AnimeServiceProtocol {
         let context = coreDataStack.viewContext
         
         // Check if anime already exists in library
-        if let existing = coreDataStack.fetchUserAnime(byAnimeId: Int64(anime.id), context: context) {
+        if coreDataStack.fetchUserAnime(byAnimeId: Int64(anime.id), context: context) != nil {
             throw KiroError.coreDataError(underlying: NSError(
                 domain: "AnimeService",
                 code: 1001,

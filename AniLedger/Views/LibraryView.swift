@@ -150,7 +150,7 @@ struct LibraryView: View {
             }
         }
         .refreshable {
-            await viewModel.sync()
+            viewModel.sync()
         }
         .onDrop(of: [.text], delegate: AnimeDropDelegate(
             status: selectedStatus,

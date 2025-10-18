@@ -166,25 +166,30 @@ class SyncService: SyncServiceProtocol {
         }
         
         for item in queueItems {
+            let itemId = item.objectID
             do {
                 try await processQueueItem(item, context: context)
                 
                 // Delete successfully processed item
                 await context.perform {
-                    context.delete(item)
-                    try? context.save()
+                    if let itemToDelete = try? context.existingObject(with: itemId) as? SyncQueueEntity {
+                        context.delete(itemToDelete)
+                        try? context.save()
+                    }
                 }
             } catch {
                 // Increment retry count
                 await context.perform {
-                    item.retryCount += 1
-                    
-                    // Remove item if max retries exceeded
-                    if item.retryCount >= 5 {
-                        context.delete(item)
+                    if let itemToUpdate = try? context.existingObject(with: itemId) as? SyncQueueEntity {
+                        itemToUpdate.retryCount += 1
+                        
+                        // Remove item if max retries exceeded
+                        if itemToUpdate.retryCount >= 5 {
+                            context.delete(itemToUpdate)
+                        }
+                        
+                        try? context.save()
                     }
-                    
-                    try? context.save()
                 }
                 
                 // Continue processing other items
