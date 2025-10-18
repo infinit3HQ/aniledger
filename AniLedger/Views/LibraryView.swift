@@ -131,6 +131,7 @@ struct LibraryView: View {
                     .fill(selectedStatus == status ? Color.accentColor : Color.clear)
                     .frame(height: 2)
             }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .frame(maxWidth: .infinity)
