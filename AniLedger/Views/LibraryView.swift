@@ -8,6 +8,20 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+enum LibraryViewMode: String, CaseIterable {
+    case gridWithImages = "Grid"
+    case listWithImages = "List"
+    case listCompact = "Compact"
+    
+    var icon: String {
+        switch self {
+        case .gridWithImages: return "square.grid.2x2"
+        case .listWithImages: return "list.bullet.rectangle.portrait"
+        case .listCompact: return "list.bullet"
+        }
+    }
+}
+
 struct LibraryView: View {
     @ObservedObject var viewModel: LibraryViewModel
     
@@ -17,6 +31,7 @@ struct LibraryView: View {
     @State private var selectedStatus: AnimeStatus = .watching
     @State private var selectedAnime: UserAnime?
     @State private var draggedAnime: UserAnime?
+    @State private var viewMode: LibraryViewMode = .gridWithImages
     
     var body: some View {
         VStack(spacing: 0) {
@@ -40,6 +55,18 @@ struct LibraryView: View {
         }
         .navigationTitle("Library")
         .toolbar {
+            ToolbarItem(placement: .automatic) {
+                Picker("View Mode", selection: $viewMode) {
+                    ForEach(LibraryViewMode.allCases, id: \.self) { mode in
+                        Label(mode.rawValue, systemImage: mode.icon)
+                            .tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 200)
+                .help("Change view mode")
+            }
+            
             ToolbarItem(placement: .primaryAction) {
                 Button(action: {
                     HapticFeedback.selection.trigger()
@@ -109,9 +136,32 @@ struct LibraryView: View {
         .frame(maxWidth: .infinity)
     }
     
-    // MARK: - Grid View
+    // MARK: - Content View
     
     private var listView: some View {
+        Group {
+            switch viewMode {
+            case .gridWithImages:
+                gridView
+            case .listWithImages:
+                listWithImagesView
+            case .listCompact:
+                compactListView
+            }
+        }
+        .refreshable {
+            await viewModel.sync()
+        }
+        .onDrop(of: [.text], delegate: AnimeDropDelegate(
+            status: selectedStatus,
+            draggedAnime: $draggedAnime,
+            viewModel: viewModel
+        ))
+    }
+    
+    // MARK: - Grid View
+    
+    private var gridView: some View {
         ScrollView {
             LazyVGrid(
                 columns: [
@@ -142,31 +192,106 @@ struct LibraryView: View {
             .padding(20)
             .animation(.spring(response: 0.3, dampingFraction: 0.8), value: currentList.count)
         }
-        .refreshable {
-            await viewModel.sync()
+    }
+    
+    // MARK: - List with Images View
+    
+    private var listWithImagesView: some View {
+        ScrollView {
+            LazyVStack(spacing: 12) {
+                ForEach(currentList) { anime in
+                    AnimeListItemView(userAnime: anime)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            HapticFeedback.selection.trigger()
+                            selectedAnime = anime
+                        }
+                        .contextMenu {
+                            contextMenuItems(for: anime)
+                        }
+                        .onDrag {
+                            self.draggedAnime = anime
+                            return NSItemProvider(object: String(anime.id) as NSString)
+                        }
+                        .transition(.asymmetric(
+                            insertion: .scale.combined(with: .opacity),
+                            removal: .scale.combined(with: .opacity)
+                        ))
+                }
+            }
+            .padding()
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: currentList.count)
         }
-        .onDrop(of: [.text], delegate: AnimeDropDelegate(
-            status: selectedStatus,
-            draggedAnime: $draggedAnime,
-            viewModel: viewModel
-        ))
+    }
+    
+    // MARK: - Compact List View
+    
+    private var compactListView: some View {
+        ScrollView {
+            LazyVStack(spacing: 8) {
+                ForEach(currentList) { anime in
+                    AnimeCompactListItemView(userAnime: anime)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            HapticFeedback.selection.trigger()
+                            selectedAnime = anime
+                        }
+                        .contextMenu {
+                            contextMenuItems(for: anime)
+                        }
+                        .onDrag {
+                            self.draggedAnime = anime
+                            return NSItemProvider(object: String(anime.id) as NSString)
+                        }
+                        .transition(.asymmetric(
+                            insertion: .scale.combined(with: .opacity),
+                            removal: .scale.combined(with: .opacity)
+                        ))
+                }
+            }
+            .padding()
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: currentList.count)
+        }
     }
     
     // MARK: - Skeleton Loading View
     
     private var skeletonLoadingView: some View {
-        ScrollView {
-            LazyVGrid(
-                columns: [
-                    GridItem(.adaptive(minimum: 160, maximum: 200), spacing: 20)
-                ],
-                spacing: 24
-            ) {
-                ForEach(0..<8, id: \.self) { _ in
-                    AnimeLibraryCardSkeleton()
+        Group {
+            switch viewMode {
+            case .gridWithImages:
+                ScrollView {
+                    LazyVGrid(
+                        columns: [
+                            GridItem(.adaptive(minimum: 160, maximum: 200), spacing: 20)
+                        ],
+                        spacing: 24
+                    ) {
+                        ForEach(0..<8, id: \.self) { _ in
+                            AnimeLibraryCardSkeleton()
+                        }
+                    }
+                    .padding(20)
+                }
+            case .listWithImages:
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(0..<5, id: \.self) { _ in
+                            AnimeListItemSkeleton()
+                        }
+                    }
+                    .padding()
+                }
+            case .listCompact:
+                ScrollView {
+                    LazyVStack(spacing: 8) {
+                        ForEach(0..<8, id: \.self) { _ in
+                            AnimeCompactListItemSkeleton()
+                        }
+                    }
+                    .padding()
                 }
             }
-            .padding(20)
         }
     }
     
@@ -332,6 +457,187 @@ struct AnimeLibraryCardSkeleton: View {
             .padding(.top, 8)
         }
         .frame(width: 160)
+        .onAppear {
+            withAnimation(Animation.linear(duration: 1.5).repeatForever(autoreverses: false)) {
+                isAnimating = true
+            }
+        }
+    }
+}
+
+// MARK: - Anime Compact List Item View
+
+struct AnimeCompactListItemView: View {
+    let userAnime: UserAnime
+    
+    @State private var isHovered = false
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Title and Info
+            VStack(alignment: .leading, spacing: 4) {
+                Text(userAnime.anime.title.preferred)
+                    .font(.body)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+                
+                HStack(spacing: 8) {
+                    // Progress
+                    Text("\(userAnime.progress)/\(userAnime.anime.episodes ?? 0)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Text("•")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    // Format
+                    Text(formatDisplayName(userAnime.anime.format))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    // Score
+                    if let score = userAnime.score, score > 0 {
+                        Text("•")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        HStack(spacing: 2) {
+                            Image(systemName: "star.fill")
+                                .font(.caption2)
+                                .foregroundColor(.yellow)
+                            Text(String(format: "%.1f", score))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            // Progress Bar
+            if let totalEpisodes = userAnime.anime.episodes, totalEpisodes > 0 {
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color.secondary.opacity(0.2))
+                        
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(progressColor)
+                            .frame(width: geometry.size.width * progressPercentage)
+                    }
+                }
+                .frame(width: 80, height: 4)
+            }
+            
+            // Sync indicator
+            if userAnime.needsSync {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.caption)
+                    .foregroundColor(.orange)
+                    .help("Pending sync")
+            }
+            
+            // Chevron
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .opacity(isHovered ? 1.0 : 0.5)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .shadow(color: .black.opacity(isHovered ? 0.08 : 0), radius: 2, y: 1)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(isHovered ? Color.accentColor.opacity(0.5) : Color.secondary.opacity(0.1), lineWidth: 1)
+        )
+        .scaleEffect(isHovered ? 1.005 : 1.0)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isHovered = hovering
+            }
+        }
+    }
+    
+    private var progressPercentage: CGFloat {
+        guard let total = userAnime.anime.episodes, total > 0 else { return 0 }
+        return CGFloat(userAnime.progress) / CGFloat(total)
+    }
+    
+    private var progressColor: Color {
+        let percentage = progressPercentage
+        if percentage >= 1.0 {
+            return .green
+        } else if percentage >= 0.5 {
+            return .blue
+        } else {
+            return .orange
+        }
+    }
+    
+    private func formatDisplayName(_ format: AnimeFormat) -> String {
+        switch format {
+        case .tv: return "TV"
+        case .tvShort: return "TV Short"
+        case .movie: return "Movie"
+        case .special: return "Special"
+        case .ova: return "OVA"
+        case .ona: return "ONA"
+        case .music: return "Music"
+        }
+    }
+}
+
+// MARK: - Anime Compact List Item Skeleton
+
+struct AnimeCompactListItemSkeleton: View {
+    @State private var isAnimating = false
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(width: 200, height: 14)
+                
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(width: 150, height: 10)
+            }
+            
+            Spacer()
+            
+            RoundedRectangle(cornerRadius: 2)
+                .fill(Color.gray.opacity(0.3))
+                .frame(width: 80, height: 4)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color.clear,
+                            Color.white.opacity(0.2),
+                            Color.clear
+                        ]),
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .offset(x: isAnimating ? 400 : -400)
+        )
+        .clipped()
         .onAppear {
             withAnimation(Animation.linear(duration: 1.5).repeatForever(autoreverses: false)) {
                 isAnimating = true
