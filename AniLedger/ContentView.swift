@@ -69,6 +69,10 @@ struct ContentView: View {
                     Label("Discover", systemImage: "sparkles")
                 }
                 
+                NavigationLink(value: NavigationItem.seasons) {
+                    Label("Seasons", systemImage: "calendar")
+                }
+                
                 NavigationLink(value: NavigationItem.search) {
                     Label("Search", systemImage: "magnifyingglass")
                 }
@@ -103,6 +107,17 @@ struct ContentView: View {
         case .discover:
             DiscoverView(
                 viewModel: createDiscoverViewModel(),
+                animeService: createAnimeService(),
+                syncService: createSyncService()
+            )
+            .transition(.asymmetric(
+                insertion: .move(edge: .trailing).combined(with: .opacity),
+                removal: .move(edge: .leading).combined(with: .opacity)
+            ))
+            
+        case .seasons:
+            SeasonsView(
+                viewModel: createSeasonsViewModel(),
                 animeService: createAnimeService(),
                 syncService: createSyncService()
             )
@@ -188,6 +203,10 @@ struct ContentView: View {
         )
     }
     
+    private func createSeasonsViewModel() -> SeasonsViewModel {
+        SeasonsViewModel(apiClient: apiClient)
+    }
+    
     private func createSearchViewModel() -> SearchViewModel {
         SearchViewModel(
             apiClient: apiClient,
@@ -209,6 +228,7 @@ struct ContentView: View {
 enum NavigationItem: Hashable {
     case library
     case discover
+    case seasons
     case search
     case settings
 }

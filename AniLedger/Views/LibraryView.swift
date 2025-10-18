@@ -63,7 +63,7 @@ struct LibraryView: View {
                     }
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 200)
+                .frame(width: 120)
                 .help("Change view mode")
             }
             
