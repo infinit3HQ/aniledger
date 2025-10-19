@@ -1,0 +1,109 @@
+AniLedger Non-Commercial Open Source License
+Version 1.0, October 2025
+
+Copyright (c) 2025 AniLedger Contributors
+
+TERMS AND CONDITIONS
+
+1. DEFINITIONS
+
+"Software" refers to AniLedger and all associated source code, documentation, 
+and related materials.
+
+"Commercial Use" means any use of the Software that is primarily intended for 
+or directed toward commercial advantage or monetary compensation, including but 
+not limited to:
+  - Selling the Software or derivatives
+  - Using the Software in a commercial product or service
+  - Using the Software to provide paid services
+  - Incorporating the Software into proprietary software for sale
+
+"Non-Commercial Use" means any use that is not Commercial Use, including 
+personal use, educational use, research, and use by non-profit organizations.
+
+2. GRANT OF LICENSE
+
+Subject to the terms and conditions of this License, you are hereby granted a 
+worldwide, royalty-free, non-exclusive license to:
+
+  a) Use, copy, and modify the Software for Non-Commercial Use only
+  b) Distribute copies of the Software for Non-Commercial Use only
+  c) Distribute modified versions of the Software for Non-Commercial Use only
+
+3. CONDITIONS
+
+Any use, modification, or distribution of the Software must comply with the 
+following conditions:
+
+  a) NON-COMMERCIAL RESTRICTION: You may NOT use the Software or any derivative 
+     works for Commercial Use without obtaining a separate commercial license 
+     from the copyright holders.
+
+  b) ATTRIBUTION: You must retain all copyright notices, this license, and 
+     provide clear attribution to the original authors in any copies or 
+     derivative works.
+
+  c) SHARE-ALIKE: If you distribute modified versions of the Software, you must:
+     - Make the complete source code available
+     - License your modifications under this same license
+     - Clearly indicate what changes were made
+     - Include this license with your distribution
+
+  d) OPEN SOURCE: All forks, derivatives, and modifications must remain open 
+     source and freely available under this same license.
+
+  e) NO WARRANTY: The Software is provided "AS IS" without warranty of any kind.
+
+4. SOURCE CODE AVAILABILITY
+
+If you distribute the Software or any derivative works, you must make the 
+complete corresponding source code available under this same license, either:
+  - Included with the distribution, or
+  - Available for download from a publicly accessible repository
+
+5. PATENT GRANT
+
+Each contributor grants you a non-exclusive, worldwide, royalty-free patent 
+license under the contributor's essential patent claims to make, use, sell, 
+offer for sale, import and otherwise run, modify and propagate the contents 
+of the Software, for Non-Commercial Use only.
+
+6. TERMINATION
+
+This license automatically terminates if you violate any of its terms. Upon 
+termination, you must cease all use and distribution of the Software and 
+destroy all copies in your possession.
+
+7. COMMERCIAL LICENSING
+
+If you wish to use the Software for Commercial Use, you must contact the 
+copyright holders to obtain a separate commercial license.
+
+8. DISCLAIMER OF WARRANTY
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE 
+SOFTWARE.
+
+9. LIMITATION OF LIABILITY
+
+IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR CONTRIBUTORS BE LIABLE FOR ANY 
+DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES 
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND 
+ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS 
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+10. ACCEPTANCE
+
+By using, copying, modifying, or distributing the Software, you indicate your 
+acceptance of this License and all its terms and conditions.
+
+---
+
+For commercial licensing inquiries, please contact the project maintainers.
