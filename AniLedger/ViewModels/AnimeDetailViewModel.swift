@@ -46,6 +46,17 @@ class AnimeDetailViewModel: ObservableObject {
         }
     }
     
+    func decrementProgress() {
+        guard let userAnime = userAnime else { return }
+        
+        // Don't allow negative progress
+        let newProgress = max(0, userAnime.progress - 1)
+        
+        Task {
+            await updateProgress(newProgress)
+        }
+    }
+    
     func updateProgress(_ newProgress: Int) async {
         guard let userAnime = userAnime else { return }
         
@@ -56,8 +67,17 @@ class AnimeDetailViewModel: ObservableObject {
             let updated = try animeService.updateAnimeProgress(userAnime.id, progress: newProgress)
             self.userAnime = updated
             
-            // Trigger sync
-            try await syncService.processSyncQueue()
+            // Queue the operation for sync
+            syncService.queueOperation(.updateProgress(
+                mediaId: anime.id,
+                progress: newProgress,
+                status: updated.status.rawValue
+            ))
+            
+            // Trigger sync (non-blocking, will be debounced)
+            Task.detached(priority: .background) {
+                try? await self.syncService.processSyncQueue()
+            }
         } catch let kiroError as KiroError {
             error = kiroError
         } catch {
@@ -79,8 +99,16 @@ class AnimeDetailViewModel: ObservableObject {
             let updated = try animeService.updateAnimeStatus(userAnime.id, status: newStatus)
             self.userAnime = updated
             
-            // Trigger sync
-            try await syncService.processSyncQueue()
+            // Queue the operation for sync
+            syncService.queueOperation(.updateStatus(
+                mediaId: anime.id,
+                status: newStatus.rawValue
+            ))
+            
+            // Trigger sync (non-blocking, will be debounced)
+            Task.detached(priority: .background) {
+                try? await self.syncService.processSyncQueue()
+            }
         } catch let kiroError as KiroError {
             error = kiroError
         } catch {
@@ -101,8 +129,17 @@ class AnimeDetailViewModel: ObservableObject {
             self.userAnime = newUserAnime
             self.isInLibrary = true
             
-            // Trigger sync
-            try await syncService.processSyncQueue()
+            // Queue the operation for sync
+            syncService.queueOperation(.updateProgress(
+                mediaId: anime.id,
+                progress: 0,
+                status: status.rawValue
+            ))
+            
+            // Trigger sync (non-blocking, will be debounced)
+            Task.detached(priority: .background) {
+                try? await self.syncService.processSyncQueue()
+            }
         } catch let kiroError as KiroError {
             error = kiroError
         } catch {
@@ -120,11 +157,17 @@ class AnimeDetailViewModel: ObservableObject {
         
         do {
             try animeService.deleteAnimeFromLibrary(userAnime.id)
+            
+            // Queue the operation for sync
+            syncService.queueOperation(.deleteEntry(mediaId: anime.id))
+            
             self.userAnime = nil
             self.isInLibrary = false
             
-            // Trigger sync
-            try await syncService.processSyncQueue()
+            // Trigger sync (non-blocking, will be debounced)
+            Task.detached(priority: .background) {
+                try? await self.syncService.processSyncQueue()
+            }
         } catch let kiroError as KiroError {
             error = kiroError
         } catch {

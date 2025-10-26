@@ -101,5 +101,17 @@ struct AvatarResponse: Decodable {
 // MARK: - Mutation Response
 
 struct SaveMediaListEntryResponse: Decodable {
-    let SaveMediaListEntry: MediaListEntry
+    let SaveMediaListEntry: SimplifiedMediaListEntry
+}
+
+struct SimplifiedMediaListEntry: Decodable {
+    let id: Int
+    let status: String?
+    let progress: Int?
+    let score: Double?
+    let media: SimplifiedMediaResponse
+}
+
+struct SimplifiedMediaResponse: Decodable {
+    let id: Int
 }

@@ -162,6 +162,15 @@ struct AnimeDetailView: View {
                 HStack(spacing: 12) {
                     Button(action: {
                         HapticFeedback.success.trigger()
+                        viewModel.decrementProgress()
+                    }) {
+                        Image(systemName: "minus.circle.fill")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(viewModel.isUpdating || userAnime.progress == 0)
+                    
+                    Button(action: {
+                        HapticFeedback.success.trigger()
                         viewModel.incrementProgress()
                     }) {
                         HStack {

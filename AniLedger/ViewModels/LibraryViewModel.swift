@@ -85,8 +85,10 @@ class LibraryViewModel: ObservableObject {
                 // Queue sync operation
                 syncService.queueOperation(.updateStatus(mediaId: anime.anime.id, status: status.rawValue))
                 
-                // Trigger sync
-                try await syncService.processSyncQueue()
+                // Trigger sync (non-blocking, will be debounced)
+                Task.detached(priority: .background) {
+                    try? await self.syncService.processSyncQueue()
+                }
                 
                 // Reload lists to reflect changes
                 loadLists(forceRefresh: true)
