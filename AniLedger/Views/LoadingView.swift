@@ -44,6 +44,7 @@ struct LoadingView: View {
             ProgressView()
                 .controlSize(size.progressViewSize)
                 .scaleEffect(size == .large ? 1.5 : 1.0)
+                .frame(width: 40, height: 40)
             
             if let message = message {
                 Text(message)
@@ -72,6 +73,7 @@ struct LoadingOverlayView: View {
                 ProgressView()
                     .controlSize(.large)
                     .scaleEffect(1.5)
+                    .frame(width: 40, height: 40)
                 
                 if let message = message {
                     Text(message)
@@ -99,6 +101,7 @@ struct InlineLoadingView: View {
         HStack(spacing: 12) {
             ProgressView()
                 .controlSize(.small)
+                .frame(width: 20, height: 20)
             
             if let message = message {
                 Text(message)
