@@ -124,17 +124,78 @@ struct SearchView: View {
     // MARK: - Error State
     
     private func errorState(error: KiroError) -> some View {
-        EmptyStateView(
-            icon: "exclamationmark.triangle",
-            title: "Search Failed",
-            message: error.localizedDescription,
-            actionTitle: "Retry",
-            action: {
-                Task {
-                    await viewModel.search(query: viewModel.searchText)
+        VStack(spacing: 20) {
+            Image(systemName: errorIcon(for: error))
+                .font(.system(size: 50))
+                .foregroundColor(errorColor(for: error))
+                .symbolRenderingMode(.hierarchical)
+            
+            VStack(spacing: 8) {
+                Text(error.userFriendlyTitle)
+                    .font(.title3)
+                    .fontWeight(.semibold)
+                
+                Text(error.localizedDescription)
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+                
+                if let suggestion = error.recoverySuggestion {
+                    Text(suggestion)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                        .padding(.top, 4)
                 }
             }
-        )
+            
+            if error.isRetryable {
+                Button(action: {
+                    Task {
+                        await viewModel.search(query: viewModel.searchText)
+                    }
+                }) {
+                    Label("Retry", systemImage: "arrow.clockwise")
+                        .fontWeight(.medium)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 8)
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(40)
+    }
+    
+    private func errorIcon(for error: KiroError) -> String {
+        switch error {
+        case .noInternetConnection:
+            return "wifi.slash"
+        case .timeout:
+            return "clock.badge.exclamationmark"
+        case .serverUnavailable:
+            return "server.rack"
+        case .rateLimitExceeded:
+            return "hourglass"
+        case .authenticationFailed:
+            return "person.crop.circle.badge.exclamationmark"
+        default:
+            return "exclamationmark.triangle"
+        }
+    }
+    
+    private func errorColor(for error: KiroError) -> Color {
+        switch error {
+        case .noInternetConnection, .timeout:
+            return .orange
+        case .serverUnavailable, .rateLimitExceeded:
+            return .yellow
+        case .authenticationFailed:
+            return .red
+        default:
+            return .orange
+        }
     }
     
     // MARK: - Search Results List
@@ -191,6 +252,7 @@ struct SearchResultRow: View {
                 width: 60,
                 height: 84
             )
+            .frame(width: 60, height: 84)
             .cornerRadius(6)
             .shadow(radius: isHovered ? 4 : 2)
             

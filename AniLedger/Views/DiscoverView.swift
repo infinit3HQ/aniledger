@@ -313,13 +313,14 @@ struct ErrorStateView: View {
     
     var body: some View {
         VStack(spacing: 20) {
-            Image(systemName: "exclamationmark.triangle")
+            // Error icon based on error type
+            Image(systemName: errorIcon)
                 .font(.system(size: 60))
-                .foregroundColor(.orange)
+                .foregroundColor(errorColor)
                 .symbolRenderingMode(.hierarchical)
             
             VStack(spacing: 8) {
-                Text("Unable to Load Content")
+                Text(error.userFriendlyTitle)
                     .font(.title2)
                     .fontWeight(.semibold)
                 
@@ -327,19 +328,61 @@ struct ErrorStateView: View {
                     .font(.body)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+                
+                if let suggestion = error.recoverySuggestion {
+                    Text(suggestion)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                        .padding(.top, 4)
+                }
             }
             
-            Button(action: onRetry) {
-                Text("Retry")
-                    .fontWeight(.medium)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 10)
+            if error.isRetryable {
+                Button(action: onRetry) {
+                    Label("Retry", systemImage: "arrow.clockwise")
+                        .fontWeight(.medium)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
         }
         .padding(40)
         .frame(maxWidth: .infinity)
+    }
+    
+    private var errorIcon: String {
+        switch error {
+        case .noInternetConnection:
+            return "wifi.slash"
+        case .timeout:
+            return "clock.badge.exclamationmark"
+        case .serverUnavailable:
+            return "server.rack"
+        case .rateLimitExceeded:
+            return "hourglass"
+        case .authenticationFailed:
+            return "person.crop.circle.badge.exclamationmark"
+        default:
+            return "exclamationmark.triangle"
+        }
+    }
+    
+    private var errorColor: Color {
+        switch error {
+        case .noInternetConnection, .timeout:
+            return .orange
+        case .serverUnavailable, .rateLimitExceeded:
+            return .yellow
+        case .authenticationFailed:
+            return .red
+        default:
+            return .orange
+        }
     }
 }
 

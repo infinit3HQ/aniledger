@@ -2,7 +2,7 @@
 //  GraphQLQueries.swift
 //  AniLedger
 //
-//  Created by Kiro on 10/13/2025.
+//  Created by Niraj Dilshan on 10/13/2025.
 //
 
 import Foundation

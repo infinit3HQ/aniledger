@@ -18,6 +18,7 @@ struct AnimeCardView: View {
                 width: width,
                 height: width * 1.4
             )
+            .frame(width: width, height: width * 1.4)
             .cornerRadius(8)
             .shadow(radius: isHovered ? 8 : 2)
             .scaleEffect(isHovered ? 1.05 : 1.0)
@@ -30,7 +31,7 @@ struct AnimeCardView: View {
                 .font(.caption)
                 .fontWeight(.medium)
                 .lineLimit(2)
-                .frame(width: width, alignment: .leading)
+                .frame(width: width, height: 28, alignment: .topLeading)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(width: width)

@@ -2,7 +2,7 @@
 //  AniListAPIClient.swift
 //  AniLedger
 //
-//  Created by Kiro on 10/13/2025.
+//  Created by Niraj Dilshan on 10/13/2025.
 //
 
 import Foundation
@@ -49,6 +49,7 @@ class AniListAPIClient: AniListAPIClientProtocol {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = 30 // 30 second timeout
         
         // Add authorization header if token is available
         if let token = tokenProvider() {
@@ -62,8 +63,27 @@ class AniListAPIClient: AniListAPIClientProtocol {
             throw KiroError.decodingError(underlying: error)
         }
         
-        // Execute request
-        let (data, response) = try await session.data(for: request)
+        // Execute request with error handling
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            // Handle specific network errors
+            let nsError = error as NSError
+            if nsError.domain == NSURLErrorDomain {
+                switch nsError.code {
+                case NSURLErrorNotConnectedToInternet, NSURLErrorNetworkConnectionLost:
+                    throw KiroError.noInternetConnection
+                case NSURLErrorTimedOut:
+                    throw KiroError.timeout
+                case NSURLErrorCannotFindHost, NSURLErrorCannotConnectToHost:
+                    throw KiroError.serverUnavailable
+                default:
+                    throw KiroError.networkError(underlying: error)
+                }
+            }
+            throw KiroError.networkError(underlying: error)
+        }
         
         // Validate HTTP response
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -72,13 +92,32 @@ class AniListAPIClient: AniListAPIClientProtocol {
         
         // Handle rate limiting with retry
         if httpResponse.statusCode == 429 {
+            let retryAfter = httpResponse.value(forHTTPHeaderField: "Retry-After")
+                .flatMap { TimeInterval($0) }
+            
+            if retryCount < maxRetries {
+                let delay = retryAfter ?? (initialRetryDelay * pow(2.0, Double(retryCount)))
+                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                return try await executeRequest(body: body, retryCount: retryCount + 1)
+            } else {
+                throw KiroError.rateLimitExceeded(retryAfter: retryAfter)
+            }
+        }
+        
+        // Handle server errors with retry
+        if (500...599).contains(httpResponse.statusCode) {
             if retryCount < maxRetries {
                 let delay = initialRetryDelay * pow(2.0, Double(retryCount))
                 try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                 return try await executeRequest(body: body, retryCount: retryCount + 1)
             } else {
-                throw KiroError.rateLimitExceeded
+                throw KiroError.serverUnavailable
             }
+        }
+        
+        // Handle authentication errors
+        if httpResponse.statusCode == 401 {
+            throw KiroError.authenticationFailed(reason: "Session expired or invalid token")
         }
         
         // Handle other HTTP errors
@@ -99,6 +138,12 @@ class AniListAPIClient: AniListAPIClientProtocol {
         if let errors = graphQLResponse.errors, !errors.isEmpty {
             let errorMessage = errors.map { $0.message }.joined(separator: ", ")
             let statusCode = errors.first?.status
+            
+            // Handle specific GraphQL error types
+            if errorMessage.lowercased().contains("authentication") || errorMessage.lowercased().contains("unauthorized") {
+                throw KiroError.authenticationFailed(reason: errorMessage)
+            }
+            
             throw KiroError.apiError(message: errorMessage, statusCode: statusCode)
         }
         
