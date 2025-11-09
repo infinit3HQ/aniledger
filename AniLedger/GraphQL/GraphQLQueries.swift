@@ -32,6 +32,7 @@ struct FetchUserAnimeListQuery: GraphQLQuery {
                     large
                     medium
                   }
+                  bannerImage
                   episodes
                   format
                   genres
@@ -72,6 +73,7 @@ struct SearchAnimeQuery: GraphQLQuery {
                 large
                 medium
               }
+              bannerImage
               episodes
               format
               genres
@@ -107,6 +109,7 @@ struct SeasonalAnimeQuery: GraphQLQuery {
                 large
                 medium
               }
+              bannerImage
               episodes
               format
               genres
@@ -142,6 +145,7 @@ struct TrendingAnimeQuery: GraphQLQuery {
                 large
                 medium
               }
+              bannerImage
               episodes
               format
               genres

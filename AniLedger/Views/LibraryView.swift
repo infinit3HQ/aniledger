@@ -787,31 +787,34 @@ struct AnimeDropDelegate: DropDelegate {
         syncService: mockSyncService
     )
     
-    // Populate with sample data
-    viewModel.watchingList = [
-        UserAnime(
-            id: 1,
-            anime: Anime(
+    let _ = {
+        // Populate with sample data
+        viewModel.watchingList = [
+            UserAnime(
                 id: 1,
-                title: AnimeTitle(romaji: "Kimetsu no Yaiba", english: "Demon Slayer", native: "鬼滅の刃"),
-                coverImage: CoverImage(
-                    large: "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx101922-PEn1CTc93blC.jpg",
-                    medium: "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx101922-PEn1CTc93blC.jpg"
+                anime: Anime(
+                    id: 1,
+                    title: AnimeTitle(romaji: "Kimetsu no Yaiba", english: "Demon Slayer", native: "鬼滅の刃"),
+                    coverImage: CoverImage(
+                        large: "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx101922-PEn1CTc93blC.jpg",
+                        medium: "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx101922-PEn1CTc93blC.jpg"
+                    ),
+                    bannerImage: nil,
+                    episodes: 26,
+                    format: .tv,
+                    genres: ["Action", "Fantasy"],
+                    synopsis: "A boy fights demons.",
+                    siteUrl: "https://anilist.co/anime/101922"
                 ),
-                episodes: 26,
-                format: .tv,
-                genres: ["Action", "Fantasy"],
-                synopsis: "A boy fights demons.",
-                siteUrl: "https://anilist.co/anime/101922"
-            ),
-            status: .watching,
-            progress: 5,
-            score: 9.5,
-            sortOrder: 0,
-            needsSync: false,
-            lastModified: Date()
-        )
-    ]
+                status: .watching,
+                progress: 5,
+                score: 9.5,
+                sortOrder: 0,
+                needsSync: false,
+                lastModified: Date()
+            )
+        ]
+    }()
     
     return NavigationStack {
         LibraryView(

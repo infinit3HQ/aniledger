@@ -7,8 +7,8 @@ A macOS-native anime tracker application built with SwiftUI that integrates with
 - 📚 **Library Management**: Organize anime into Watching, Completed, Plan to Watch, On Hold, and Dropped lists
 - 🔄 **AniList Sync**: Seamlessly sync your progress with AniList.co
 - 🔍 **Discover & Search**: Browse seasonal anime, trending titles, and search for specific anime
-- � **Seoasonal Browser**: Explore anime by season (Winter, Spring, Summer, Fall) and year
-- � **OProgress Tracking**: Update episode progress with visual progress indicators
+- � **Seasonal Browser**: Explore anime by season (Winter, Spring, Summer, Fall) and year
+- � **Progress Tracking**: Update episode progress with visual progress indicators
 - 💾 **Offline Support**: View and edit your library offline with automatic sync when reconnected
 - 🌐 **Network Monitoring**: Visual offline indicator when disconnected
 - 🎨 **Native macOS UI**: Beautiful SwiftUI interface with light/dark mode support

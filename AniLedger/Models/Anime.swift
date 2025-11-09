@@ -11,6 +11,7 @@ struct Anime: Identifiable, Codable {
     let id: Int
     let title: AnimeTitle
     let coverImage: CoverImage
+    let bannerImage: String?
     let episodes: Int?
     let format: AnimeFormat
     let genres: [String]

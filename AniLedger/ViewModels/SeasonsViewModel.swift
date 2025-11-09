@@ -143,6 +143,7 @@ class SeasonsViewModel: ObservableObject {
             id: mediaResponse.id,
             title: title,
             coverImage: coverImage,
+            bannerImage: mediaResponse.bannerImage,
             episodes: mediaResponse.episodes,
             format: format,
             genres: mediaResponse.genres,

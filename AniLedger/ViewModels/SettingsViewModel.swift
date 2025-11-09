@@ -118,12 +118,7 @@ class SettingsViewModel: ObservableObject {
         Task {
             // Clear local data if requested
             if clearDataOnLogout {
-                do {
-                    try coreDataStack.clearAllData()
-                    print("Local data cleared on logout")
-                } catch {
-                    print("Error clearing local data: \(error)")
-                }
+                try? coreDataStack.clearAllData()
             }
             
             // Perform logout on authentication service

@@ -113,19 +113,12 @@ class AuthenticationService: NSObject, AuthenticationServiceProtocol, Observable
     /// Generate OAuth2 authorization URL
     /// - Returns: URL for authorization or nil if invalid
     private func generateAuthorizationURL() -> URL? {
-        print("🔑 Using Client ID: \(clientId)")
-        print("🔗 Redirect URI: \(redirectUri)")
-        
         var components = URLComponents(string: authorizationEndpoint)
         components?.queryItems = [
             URLQueryItem(name: "client_id", value: clientId),
             URLQueryItem(name: "redirect_uri", value: redirectUri),
             URLQueryItem(name: "response_type", value: "code")
         ]
-        
-        if let url = components?.url {
-            print("📍 Authorization URL: \(url)")
-        }
         
         return components?.url
     }
@@ -147,8 +140,6 @@ class AuthenticationService: NSObject, AuthenticationServiceProtocol, Observable
                         if (error as NSError).code == ASWebAuthenticationSessionError.canceledLogin.rawValue {
                             continuation.resume(throwing: KiroError.authenticationFailed(reason: "User cancelled authentication"))
                         } else {
-                            print("❌ Authentication error: \(error.localizedDescription)")
-                            print("❌ Error code: \((error as NSError).code)")
                             continuation.resume(throwing: KiroError.authenticationFailed(reason: error.localizedDescription))
                         }
                         return
@@ -160,14 +151,12 @@ class AuthenticationService: NSObject, AuthenticationServiceProtocol, Observable
                         return
                     }
                     
-                    print("✅ Successfully received authorization code")
                     continuation.resume(returning: code)
                 }
                 
                 session.presentationContextProvider = self
                 session.prefersEphemeralWebBrowserSession = false
                 
-                print("🔐 Starting authentication session with URL: \(url)")
                 if !session.start() {
                     continuation.resume(throwing: KiroError.authenticationFailed(reason: "Failed to start authentication session"))
                 }
@@ -207,29 +196,17 @@ class AuthenticationService: NSObject, AuthenticationServiceProtocol, Observable
         
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         
-        print("🔄 Exchanging authorization code for token...")
-        print("📤 Request URL: \(tokenEndpoint)")
-        print("📤 Request body: \(body)")
-        
         let (data, response) = try await URLSession.shared.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
             throw KiroError.invalidResponse
         }
         
-        print("📥 Response status code: \(httpResponse.statusCode)")
-        
         if httpResponse.statusCode != 200 {
-            // Try to parse error response
-            if let errorString = String(data: data, encoding: .utf8) {
-                print("❌ Error response: \(errorString)")
-            }
             throw KiroError.apiError(message: "Token exchange failed", statusCode: httpResponse.statusCode)
         }
         
         let tokenResponse = try JSONDecoder().decode(TokenResponse.self, from: data)
-        
-        print("✅ Successfully received access token")
         
         return AuthToken(
             accessToken: tokenResponse.access_token,

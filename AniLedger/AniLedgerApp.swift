@@ -89,32 +89,19 @@ struct AniLedgerApp: App {
     
     /// Perform auto-sync on app launch if enabled and user is authenticated
     private func performAutoSyncIfEnabled() {
-        print("🔄 performAutoSyncIfEnabled called")
-        print("   - autoSyncEnabled: \(autoSyncEnabled)")
-        print("   - isAuthenticated: \(authenticationService.isAuthenticated)")
-        print("   - currentUser: \(authenticationService.currentUser?.name ?? "nil")")
-        
         guard autoSyncEnabled && authenticationService.isAuthenticated else {
-            print("⏭️  Skipping auto-sync (not enabled or not authenticated)")
             return
         }
-        
-        print("✅ Starting auto-sync...")
         
         Task {
             do {
                 // Process any pending sync queue items first
-                print("🔄 Processing sync queue...")
                 try await syncService.processSyncQueue()
                 
                 // Then perform incremental sync
-                print("🔄 Syncing user lists...")
                 try await syncService.syncUserLists()
-                
-                print("✅ Auto-sync completed successfully")
             } catch {
-                // Log error but don't block app launch
-                print("❌ Auto-sync failed: \(error.localizedDescription)")
+                // Silently fail - don't block app launch
             }
         }
     }

@@ -53,6 +53,7 @@ struct MediaResponse: Decodable {
     let id: Int
     let title: TitleResponse
     let coverImage: CoverImageResponse
+    let bannerImage: String?
     let episodes: Int?
     let format: String?
     let genres: [String]

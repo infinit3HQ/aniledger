@@ -184,6 +184,7 @@ struct AnimeLibraryCardView: View {
                         large: "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx101922-PEn1CTc93blC.jpg",
                         medium: "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx101922-PEn1CTc93blC.jpg"
                     ),
+                    bannerImage: nil,
                     episodes: 26,
                     format: .tv,
                     genres: ["Action", "Fantasy"],
@@ -213,6 +214,7 @@ struct AnimeLibraryCardView: View {
                         large: "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx16498-C6FPmWm59CyP.jpg",
                         medium: "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx16498-C6FPmWm59CyP.jpg"
                     ),
+                    bannerImage: nil,
                     episodes: 25,
                     format: .tv,
                     genres: ["Action", "Drama"],

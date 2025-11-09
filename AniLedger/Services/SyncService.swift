@@ -93,7 +93,6 @@ class SyncService: SyncServiceProtocol {
     func syncAll() async throws {
         // Prevent concurrent sync operations
         guard await syncState.startSyncing() else {
-            print("⏭️  Skipping initial sync (already syncing)")
             return
         }
         
@@ -138,11 +137,8 @@ class SyncService: SyncServiceProtocol {
     
     /// Performs incremental sync - fetches updates from AniList and merges with local changes
     func syncUserLists() async throws {
-        print("🔄 SyncService.syncUserLists() called")
-        
         // Prevent concurrent sync operations
         guard await syncState.startSyncing() else {
-            print("⏭️  Skipping sync (already syncing)")
             return
         }
         
@@ -154,7 +150,6 @@ class SyncService: SyncServiceProtocol {
         
         // Check network connectivity
         guard NetworkMonitor.shared.isConnected else {
-            print("❌ No network connection")
             throw KiroError.networkError(underlying: NSError(
                 domain: "SyncService",
                 code: 3001,
@@ -163,18 +158,12 @@ class SyncService: SyncServiceProtocol {
         }
         
         guard let userId = userIdProvider() else {
-            print("❌ User not authenticated (userId is nil)")
             throw KiroError.authenticationFailed(reason: "User not authenticated")
         }
-        
-        print("✅ Network connected, userId: \(userId)")
-        print("🔄 Fetching anime lists from AniList...")
         
         // Fetch all anime lists from AniList
         let query = FetchUserAnimeListQuery(userId: userId, status: nil)
         let response: MediaListCollectionResponse = try await apiClient.execute(query: query)
-        
-        print("✅ Received \(response.MediaListCollection.lists.count) lists from AniList")
         
         let context = coreDataStack.newBackgroundContext()
         
@@ -185,24 +174,17 @@ class SyncService: SyncServiceProtocol {
             
             // Track remote anime IDs
             var remoteAnimeIds = Set<Int>()
-            var totalEntries = 0
             
             // Process remote entries
             for list in response.MediaListCollection.lists {
                 for entry in list.entries {
                     remoteAnimeIds.insert(entry.media.id)
                     try self.processRemoteEntry(entry, context: context)
-                    totalEntries += 1
                 }
             }
             
-            print("✅ Processed \(totalEntries) anime entries")
-            
             // Remove local entries that don't exist remotely (deleted on AniList)
             let deletedAnimeIds = localAnimeIds.subtracting(remoteAnimeIds)
-            if !deletedAnimeIds.isEmpty {
-                print("🗑️  Removing \(deletedAnimeIds.count) deleted anime from local storage")
-            }
             
             for animeId in deletedAnimeIds {
                 if let userAnimeEntity = self.coreDataStack.fetchUserAnime(byAnimeId: Int64(animeId), context: context) {
@@ -214,7 +196,6 @@ class SyncService: SyncServiceProtocol {
             }
             
             try context.save()
-            print("✅ Sync completed successfully")
         }
     }
     
@@ -222,18 +203,14 @@ class SyncService: SyncServiceProtocol {
     
     /// Processes queued operations when connection is restored
     func processSyncQueue() async throws {
-        print("🔄 SyncService.processSyncQueue() called")
-        
         // Check if already syncing
         guard await syncState.startSyncing() else {
-            print("⏭️  Skipping sync queue processing (already syncing)")
             return
         }
         
         // Check network connectivity - silently return if offline
         guard NetworkMonitor.shared.isConnected else {
             await syncState.stopSyncing()
-            print("⏭️  Skipping sync queue processing (offline)")
             return
         }
         
@@ -249,14 +226,10 @@ class SyncService: SyncServiceProtocol {
             self.coreDataStack.fetchSyncQueue(context: context)
         }
         
-        print("📋 Found \(queueItems.count) items in sync queue")
-        
         // If queue is empty, return early
         guard !queueItems.isEmpty else {
             return
         }
-        
-        print("🔄 Processing \(queueItems.count) queued operations...")
         
         for item in queueItems {
             let itemId = item.objectID
@@ -267,18 +240,10 @@ class SyncService: SyncServiceProtocol {
                 await context.perform {
                     if let itemToDelete = try? context.existingObject(with: itemId) as? SyncQueueEntity {
                         context.delete(itemToDelete)
-                        do {
-                            try context.save()
-                            print("✅ Queue item deleted successfully")
-                        } catch {
-                            print("❌ Failed to delete queue item: \(error)")
-                        }
-                    } else {
-                        print("⚠️  Queue item not found for deletion")
+                        try? context.save()
                     }
                 }
             } catch {
-                print("❌ Failed to process queue item: \(error)")
                 // Increment retry count
                 await context.perform {
                     if let itemToUpdate = try? context.existingObject(with: itemId) as? SyncQueueEntity {
@@ -286,7 +251,6 @@ class SyncService: SyncServiceProtocol {
                         
                         // Remove item if max retries exceeded
                         if itemToUpdate.retryCount >= 5 {
-                            print("⚠️  Max retries exceeded, removing queue item")
                             context.delete(itemToUpdate)
                         }
                         
@@ -298,16 +262,12 @@ class SyncService: SyncServiceProtocol {
                 continue
             }
         }
-        
-        print("✅ Sync queue processing completed")
     }
     
     // MARK: - Queue Operation
     
     /// Queues an operation for later sync when offline
     func queueOperation(_ operation: SyncOperation) {
-        print("📝 Queueing sync operation: \(operation)")
-        
         let context = coreDataStack.viewContext
         
         // Check if there's already a pending operation for this entity
@@ -322,7 +282,6 @@ class SyncService: SyncServiceProtocol {
         
         // Check if there's already a queue item for this media
         if let existingItem = existingItems.first(where: { $0.entityId == Int64(mediaId) }) {
-            print("⚠️  Queue item already exists for mediaId \(mediaId), updating instead of creating new")
             // Update the existing item instead of creating a new one
             updateQueueItem(existingItem, with: operation, context: context)
             try? coreDataStack.saveContext()
@@ -459,12 +418,9 @@ class SyncService: SyncServiceProtocol {
             }
             
             let status = payload["status"] as? String
-            print("📤 Syncing progress update to AniList: mediaId=\(mediaId), progress=\(progress), status=\(status ?? "nil")")
             
             let mutation = UpdateProgressMutation(mediaId: mediaId, progress: progress, status: status)
             let _: SaveMediaListEntryResponse = try await apiClient.execute(mutation: mutation)
-            
-            print("✅ Progress synced successfully")
             
             // Update local needsSync flag
             await context.perform {
@@ -484,12 +440,8 @@ class SyncService: SyncServiceProtocol {
                 ))
             }
             
-            print("📤 Syncing status update to AniList: mediaId=\(mediaId), status=\(status)")
-            
             let mutation = UpdateStatusMutation(mediaId: mediaId, status: status)
             let _: SaveMediaListEntryResponse = try await apiClient.execute(mutation: mutation)
-            
-            print("✅ Status synced successfully")
             
             // Update local needsSync flag
             await context.perform {
@@ -518,6 +470,7 @@ class SyncService: SyncServiceProtocol {
             existing.titleNative = anime.title.native
             existing.coverImageLarge = anime.coverImage.large
             existing.coverImageMedium = anime.coverImage.medium
+            existing.bannerImage = anime.bannerImage
             existing.episodes = Int32(anime.episodes ?? 0)
             existing.format = anime.format.rawValue
             existing.synopsis = anime.synopsis
@@ -540,6 +493,7 @@ class SyncService: SyncServiceProtocol {
         animeEntity.titleNative = anime.title.native
         animeEntity.coverImageLarge = anime.coverImage.large
         animeEntity.coverImageMedium = anime.coverImage.medium
+        animeEntity.bannerImage = anime.bannerImage
         animeEntity.episodes = Int32(anime.episodes ?? 0)
         animeEntity.format = anime.format.rawValue
         animeEntity.synopsis = anime.synopsis
@@ -572,6 +526,7 @@ class SyncService: SyncServiceProtocol {
             id: media.id,
             title: title,
             coverImage: coverImage,
+            bannerImage: media.bannerImage,
             episodes: media.episodes,
             format: format,
             genres: media.genres,

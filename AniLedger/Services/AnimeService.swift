@@ -268,6 +268,7 @@ class AnimeService: AnimeServiceProtocol {
             existing.titleNative = anime.title.native
             existing.coverImageLarge = anime.coverImage.large
             existing.coverImageMedium = anime.coverImage.medium
+            existing.bannerImage = anime.bannerImage
             existing.episodes = Int32(anime.episodes ?? 0)
             existing.format = anime.format.rawValue
             existing.synopsis = anime.synopsis
@@ -290,6 +291,7 @@ class AnimeService: AnimeServiceProtocol {
         animeEntity.titleNative = anime.title.native
         animeEntity.coverImageLarge = anime.coverImage.large
         animeEntity.coverImageMedium = anime.coverImage.medium
+        animeEntity.bannerImage = anime.bannerImage
         animeEntity.episodes = Int32(anime.episodes ?? 0)
         animeEntity.format = anime.format.rawValue
         animeEntity.synopsis = anime.synopsis
@@ -361,6 +363,7 @@ class AnimeService: AnimeServiceProtocol {
             id: Int(entity.id),
             title: title,
             coverImage: coverImage,
+            bannerImage: entity.bannerImage,
             episodes: entity.episodes > 0 ? Int(entity.episodes) : nil,
             format: format,
             genres: genres,

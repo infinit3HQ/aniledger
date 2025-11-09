@@ -101,18 +101,41 @@ struct AnimeDetailView: View {
     
     private var coverImageSection: some View {
         ZStack(alignment: .topTrailing) {
-            AsyncImageView(
-                url: viewModel.anime.coverImage.large,
-                width: 600,
-                height: 300
+            // Use banner image if available (16:9), otherwise use cover with blur background
+            if let bannerImage = viewModel.anime.bannerImage,
+               !bannerImage.isEmpty,
+               let bannerURL = URL(string: bannerImage) {
+                // Banner image (16:9 aspect ratio)
+                AsyncImage(url: bannerURL) { phase in
+                    switch phase {
+                    case .empty:
+                        Rectangle()
+                            .fill(Color.black.opacity(0.1))
+                            .frame(width: 600, height: 300)
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 600, height: 300)
+                            .clipped()
+                    case .failure:
+                        fallbackCoverImage
+                    @unknown default:
+                        EmptyView()
+                    }
+                }
+            } else {
+                // Fallback to cover image with blur background
+                fallbackCoverImage
+            }
+            
+            // Gradient overlay
+            LinearGradient(
+                gradient: Gradient(colors: [.clear, Color(nsColor: .windowBackgroundColor)]),
+                startPoint: .center,
+                endPoint: .bottom
             )
-            .overlay(
-                LinearGradient(
-                    gradient: Gradient(colors: [.clear, Color(nsColor: .windowBackgroundColor)]),
-                    startPoint: .center,
-                    endPoint: .bottom
-                )
-            )
+            .frame(height: 300)
             
             // Close button
             Button(action: { dismiss() }) {
@@ -122,6 +145,48 @@ struct AnimeDetailView: View {
             }
             .buttonStyle(.plain)
             .padding(16)
+        }
+        .frame(width: 600, height: 300)
+    }
+    
+    private var fallbackCoverImage: some View {
+        ZStack {
+            // Background blur effect
+            if let imageURL = URL(string: viewModel.anime.coverImage.large) {
+                AsyncImage(url: imageURL) { phase in
+                    if case .success(let image) = phase {
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 600, height: 300)
+                            .blur(radius: 20)
+                            .opacity(0.3)
+                            .clipped()
+                    }
+                }
+            }
+            
+            // Properly fitted cover image
+            if let imageURL = URL(string: viewModel.anime.coverImage.large) {
+                AsyncImage(url: imageURL) { phase in
+                    switch phase {
+                    case .empty:
+                        Color.clear
+                            .frame(width: 32, height: 32)
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(maxWidth: 600, maxHeight: 300)
+                    case .failure:
+                        Image(systemName: "photo")
+                            .font(.largeTitle)
+                            .foregroundColor(.gray)
+                    @unknown default:
+                        EmptyView()
+                    }
+                }
+            }
         }
     }
     
@@ -474,6 +539,7 @@ struct AnimeDetailView: View {
             large: "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx101922-PEn1CTc93blC.jpg",
             medium: "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx101922-PEn1CTc93blC.jpg"
         ),
+        bannerImage: "https://s4.anilist.co/file/anilistcdn/media/anime/banner/101922-YfZhKBUDDS6L.jpg",
         episodes: 26,
         format: .tv,
         genres: ["Action", "Adventure", "Drama", "Fantasy", "Supernatural"],
@@ -517,6 +583,7 @@ struct AnimeDetailView: View {
             large: "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx16498-C6FPmWm59CyP.jpg",
             medium: "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx16498-C6FPmWm59CyP.jpg"
         ),
+        bannerImage: nil,
         episodes: 25,
         format: .tv,
         genres: ["Action", "Drama", "Fantasy", "Mystery"],

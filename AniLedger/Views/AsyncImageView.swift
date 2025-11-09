@@ -45,12 +45,8 @@ struct AsyncImageView: View {
     }
     
     private var placeholderView: some View {
-        ZStack {
-            Color.gray.opacity(0.2)
-            ProgressView()
-                .scaleEffect(0.8)
-        }
-        .shimmer()
+        Color.gray.opacity(0.2)
+            .shimmer()
     }
     
     private var errorView: some View {

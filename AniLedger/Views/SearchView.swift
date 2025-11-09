@@ -377,44 +377,48 @@ private class MockAnimeService: AnimeServiceProtocol {
         animeService: animeService
     )
     
-    // Simulate search results
-    viewModel.searchText = "Demon Slayer"
-    viewModel.searchResults = [
-        Anime(
-            id: 1,
-            title: AnimeTitle(
-                romaji: "Kimetsu no Yaiba",
-                english: "Demon Slayer",
-                native: "鬼滅の刃"
+    let _ = {
+        // Simulate search results
+        viewModel.searchText = "Demon Slayer"
+        viewModel.searchResults = [
+            Anime(
+                id: 1,
+                title: AnimeTitle(
+                    romaji: "Kimetsu no Yaiba",
+                    english: "Demon Slayer",
+                    native: "鬼滅の刃"
+                ),
+                coverImage: CoverImage(
+                    large: "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx101922-PEn1CTc93blC.jpg",
+                    medium: "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx101922-PEn1CTc93blC.jpg"
+                ),
+                bannerImage: nil,
+                episodes: 26,
+                format: .tv,
+                genres: ["Action", "Fantasy", "Supernatural"],
+                synopsis: "A boy fights demons to save his sister.",
+                siteUrl: "https://anilist.co/anime/101922"
             ),
-            coverImage: CoverImage(
-                large: "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx101922-PEn1CTc93blC.jpg",
-                medium: "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx101922-PEn1CTc93blC.jpg"
-            ),
-            episodes: 26,
-            format: .tv,
-            genres: ["Action", "Fantasy", "Supernatural"],
-            synopsis: "A boy fights demons to save his sister.",
-            siteUrl: "https://anilist.co/anime/101922"
-        ),
-        Anime(
-            id: 2,
-            title: AnimeTitle(
-                romaji: "Kimetsu no Yaiba: Mugen Ressha-hen",
-                english: "Demon Slayer: Mugen Train",
-                native: "鬼滅の刃 無限列車編"
-            ),
-            coverImage: CoverImage(
-                large: "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx142329-jt2F8kVXI4p1.jpg",
-                medium: "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx142329-jt2F8kVXI4p1.jpg"
-            ),
-            episodes: 1,
-            format: .movie,
-            genres: ["Action", "Fantasy", "Drama"],
-            synopsis: "The movie adaptation of the Mugen Train arc.",
-            siteUrl: "https://anilist.co/anime/142329"
-        )
-    ]
+            Anime(
+                id: 2,
+                title: AnimeTitle(
+                    romaji: "Kimetsu no Yaiba: Mugen Ressha-hen",
+                    english: "Demon Slayer: Mugen Train",
+                    native: "鬼滅の刃 無限列車編"
+                ),
+                coverImage: CoverImage(
+                    large: "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx142329-jt2F8kVXI4p1.jpg",
+                    medium: "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx142329-jt2F8kVXI4p1.jpg"
+                ),
+                bannerImage: nil,
+                episodes: 1,
+                format: .movie,
+                genres: ["Action", "Fantasy", "Drama"],
+                synopsis: "The movie adaptation of the Mugen Train arc.",
+                siteUrl: "https://anilist.co/anime/142329"
+            )
+        ]
+    }()
     
     return NavigationStack {
         SearchView(
