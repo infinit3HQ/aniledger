@@ -139,11 +139,18 @@ struct AnimeDetailView: View {
             
             // Close button
             Button(action: { dismiss() }) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.title2)
-                    .foregroundStyle(.secondary, .ultraThinMaterial)
+                ZStack {
+                    Circle()
+                        .fill(.ultraThinMaterial)
+                        .frame(width: 28, height: 28)
+                    
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
             }
             .buttonStyle(.plain)
+            .keyboardShortcut(.cancelAction)
             .padding(16)
         }
         .frame(width: 600, height: 300)
