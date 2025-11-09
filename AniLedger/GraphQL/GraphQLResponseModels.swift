@@ -59,6 +59,13 @@ struct MediaResponse: Decodable {
     let genres: [String]
     let description: String?
     let siteUrl: String
+    let nextAiringEpisode: AiringEpisode?
+}
+
+struct AiringEpisode: Decodable {
+    let airingAt: Int // Unix timestamp
+    let timeUntilAiring: Int // Seconds until airing
+    let episode: Int // Episode number
 }
 
 struct TitleResponse: Decodable {

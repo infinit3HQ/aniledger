@@ -19,6 +19,8 @@ struct AniLedgerApp: App {
     private let keychainManager: KeychainManagerProtocol
     private let apiClient: AniListAPIClientProtocol
     private let syncService: SyncServiceProtocol
+    private let airingScheduleService: AiringScheduleServiceProtocol
+    private let notificationService: NotificationServiceProtocol
     
     // MARK: - App Storage
     
@@ -51,10 +53,20 @@ struct AniLedgerApp: App {
             userIdProvider: { authService.currentUser?.id }
         )
         
+        // Initialize notification and airing schedule services
+        let notificationService = NotificationService()
+        let airingScheduleService = AiringScheduleService(
+            animeService: animeService,
+            notificationService: notificationService,
+            apiClient: apiClient
+        )
+        
         // Store dependencies
         self.keychainManager = keychainManager
         self.apiClient = apiClient
         self.syncService = syncService
+        self.notificationService = notificationService
+        self.airingScheduleService = airingScheduleService
         
         // Set state objects
         _authenticationService = StateObject(wrappedValue: authService)
@@ -75,11 +87,15 @@ struct AniLedgerApp: App {
             .environmentObject(authenticationService)
             .onAppear {
                 performAutoSyncIfEnabled()
+                setupNotifications()
             }
             .onChange(of: authenticationService.isAuthenticated) { _, isAuthenticated in
                 // Trigger auto-sync when user becomes authenticated
                 if isAuthenticated && authenticationService.currentUser != nil {
                     performAutoSyncIfEnabled()
+                    startAiringMonitoring()
+                } else {
+                    airingScheduleService.stopMonitoring()
                 }
             }
         }
@@ -104,5 +120,22 @@ struct AniLedgerApp: App {
                 // Silently fail - don't block app launch
             }
         }
+    }
+    
+    // MARK: - Notifications
+    
+    /// Request notification permissions and setup
+    private func setupNotifications() {
+        Task {
+            let granted = await notificationService.requestAuthorization()
+            if granted && authenticationService.isAuthenticated {
+                startAiringMonitoring()
+            }
+        }
+    }
+    
+    /// Start monitoring airing schedules
+    private func startAiringMonitoring() {
+        airingScheduleService.startMonitoring()
     }
 }
