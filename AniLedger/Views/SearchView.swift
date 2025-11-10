@@ -224,6 +224,7 @@ struct SearchView: View {
             .padding(.vertical, 8)
             .animation(.spring(response: 0.3, dampingFraction: 0.8), value: viewModel.searchResults.count)
         }
+        .frame(maxHeight: .infinity)
     }
     
     // MARK: - Helper Methods
