@@ -37,6 +37,7 @@ struct LibraryView: View {
         VStack(spacing: 0) {
             // Status Tabs
             statusTabBar
+                .padding(.bottom, 8)
             
             Divider()
             

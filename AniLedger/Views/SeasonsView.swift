@@ -25,7 +25,6 @@ struct SeasonsView: View {
             // Season and Year Selector
             seasonYearPicker
                 .padding()
-                .background(Color(nsColor: .controlBackgroundColor))
             
             Divider()
             
@@ -67,7 +66,6 @@ struct SeasonsView: View {
                 }
                 .padding(.vertical)
             }
-            .background(Color(nsColor: .windowBackgroundColor))
         }
         .navigationTitle("Seasons")
         .toolbar {

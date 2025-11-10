@@ -402,6 +402,7 @@ Contributions are welcome! Please feel free to submit issues or pull requests.
 - **[DATA_MIGRATION_AND_CLEANUP.md](AniLedger/CoreData/DATA_MIGRATION_AND_CLEANUP.md)**: Data management features
 - **[REUSABLE_COMPONENTS_SUMMARY.md](AniLedger/Views/REUSABLE_COMPONENTS_SUMMARY.md)**: UI component documentation
 - **[Services README](AniLedger/Services/README.md)**: Service layer documentation
+- **[APP_INFORMATION_MANAGEMENT.md](AniLedger/Documentation/APP_INFORMATION_MANAGEMENT.md)**: App information and version management
 
 ## License
 

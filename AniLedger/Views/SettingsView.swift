@@ -9,6 +9,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var viewModel: SettingsViewModel
+    @State private var showAbout = false
     
     var body: some View {
         Form {
@@ -27,6 +28,9 @@ struct SettingsView: View {
             // Data Management Section
             dataManagementSection
             
+            // About Section
+            aboutSection
+            
             // Logout Section
             logoutSection
         }
@@ -35,6 +39,9 @@ struct SettingsView: View {
         .sheet(isPresented: $viewModel.showNotificationSettings) {
             NotificationSettingsSheet(notificationService: viewModel.notificationService)
                 .frame(minWidth: 500, minHeight: 600)
+        }
+        .sheet(isPresented: $showAbout) {
+            AboutView()
         }
         .alert("Confirm Logout", isPresented: $viewModel.showLogoutConfirmation) {
             Button("Cancel", role: .cancel) {
@@ -217,6 +224,41 @@ struct SettingsView: View {
             .buttonStyle(.plain)
         } header: {
             Text("Notifications")
+        }
+    }
+    
+    // MARK: - About Section
+    
+    private var aboutSection: some View {
+        Section {
+            Button {
+                showAbout = true
+            } label: {
+                HStack {
+                    Image(systemName: "info.circle")
+                        .foregroundColor(.accentColor)
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("About AniLedger")
+                            .font(.body)
+                            .foregroundColor(.primary)
+                        
+                        Text("Version \(AppInfo.version) (\(AppInfo.buildNumber))")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        } header: {
+            Text("About")
         }
     }
     

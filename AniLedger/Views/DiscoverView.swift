@@ -21,74 +21,75 @@ struct DiscoverView: View {
     }
     
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                // Filter Bar
-                FilterBar(
-                    selectedGenres: $viewModel.selectedGenres,
-                    selectedFormats: $viewModel.selectedFormats,
-                    onFilterChange: {
-                        viewModel.applyFilters()
-                    }
-                )
-                .padding(.horizontal)
-                .padding(.leading, 10)
-                
-                if viewModel.isLoading {
-                    VStack(spacing: 24) {
-                        DiscoverSectionSkeleton()
-                        DiscoverSectionSkeleton()
-                        DiscoverSectionSkeleton()
-                    }
-                    .transition(.opacity)
-                } else if let error = viewModel.error {
-                    ErrorStateView(error: error) {
-                        viewModel.loadDiscoverContent()
-                    }
-                    .padding()
-                    .transition(.scale.combined(with: .opacity))
-                } else {
-                    VStack(spacing: 24) {
-                        // Current Season Section
-                        AnimeSection(
-                            title: "Current Season",
-                            anime: viewModel.currentSeasonAnime,
-                            onAnimeTap: { anime in
-                                HapticFeedback.selection.trigger()
-                                selectedAnime = anime
-                            }
-                        )
-                        .transition(.move(edge: .leading).combined(with: .opacity))
-                        
-                        // Upcoming Section
-                        AnimeSection(
-                            title: "Upcoming",
-                            anime: viewModel.upcomingAnime,
-                            onAnimeTap: { anime in
-                                HapticFeedback.selection.trigger()
-                                selectedAnime = anime
-                            }
-                        )
-                        .transition(.move(edge: .leading).combined(with: .opacity))
-                        
-                        // Trending Section
-                        AnimeSection(
-                            title: "Trending Now",
-                            anime: viewModel.trendingAnime,
-                            onAnimeTap: { anime in
-                                HapticFeedback.selection.trigger()
-                                selectedAnime = anime
-                            }
-                        )
-                        .transition(.move(edge: .leading).combined(with: .opacity))
-                    }
-                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: viewModel.isLoading)
+        VStack(spacing: 0) {
+            // Filter Bar
+            FilterBar(
+                selectedGenres: $viewModel.selectedGenres,
+                selectedFormats: $viewModel.selectedFormats,
+                onFilterChange: {
+                    viewModel.applyFilters()
                 }
+            )
+            .padding()
+            
+            Divider()
+            
+            ScrollView {
+                VStack(spacing: 24) {
+                    if viewModel.isLoading {
+                        VStack(spacing: 24) {
+                            DiscoverSectionSkeleton()
+                            DiscoverSectionSkeleton()
+                            DiscoverSectionSkeleton()
+                        }
+                        .transition(.opacity)
+                    } else if let error = viewModel.error {
+                        ErrorStateView(error: error) {
+                            viewModel.loadDiscoverContent()
+                        }
+                        .padding()
+                        .transition(.scale.combined(with: .opacity))
+                    } else {
+                        VStack(spacing: 24) {
+                            // Current Season Section
+                            AnimeSection(
+                                title: "Current Season",
+                                anime: viewModel.currentSeasonAnime,
+                                onAnimeTap: { anime in
+                                    HapticFeedback.selection.trigger()
+                                    selectedAnime = anime
+                                }
+                            )
+                            .transition(.move(edge: .leading).combined(with: .opacity))
+                            
+                            // Upcoming Section
+                            AnimeSection(
+                                title: "Upcoming",
+                                anime: viewModel.upcomingAnime,
+                                onAnimeTap: { anime in
+                                    HapticFeedback.selection.trigger()
+                                    selectedAnime = anime
+                                }
+                            )
+                            .transition(.move(edge: .leading).combined(with: .opacity))
+                            
+                            // Trending Section
+                            AnimeSection(
+                                title: "Trending Now",
+                                anime: viewModel.trendingAnime,
+                                onAnimeTap: { anime in
+                                    HapticFeedback.selection.trigger()
+                                    selectedAnime = anime
+                                }
+                            )
+                            .transition(.move(edge: .leading).combined(with: .opacity))
+                        }
+                        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: viewModel.isLoading)
+                    }
+                }
+                .padding(.vertical)
             }
-            .padding(.vertical)
-            .padding(.leading, 10)
         }
-        .background(Color(nsColor: .windowBackgroundColor))
         .navigationTitle("Discover")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
