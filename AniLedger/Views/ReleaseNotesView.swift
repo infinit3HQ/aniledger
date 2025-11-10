@@ -147,6 +147,27 @@ struct ReleaseNote {
     
     static let allReleases: [ReleaseNote] = [
         ReleaseNote(
+            version: "0.3.0",
+            date: "November 11, 2025",
+            features: [
+                "Airing Notifications: Get timely alerts for upcoming anime episodes",
+                "AiringScheduleService and NotificationService for proactive episode notifications",
+                "Banner image support for anime entities for a richer visual experience",
+                "Comprehensive app information management system (AppInfo, AboutView, ReleaseNotesView)",
+                "Centralized app metadata and version tracking"
+            ],
+            improvements: [
+                "More detailed error types, improved localization, and clearer user feedback",
+                "Updated SearchView layout and frame configuration",
+                "Redesigned AnimeDetailView close button design and interaction",
+                "Consistent loading view sizing and frame consistency",
+                "Thread-safe sync state management with better logging",
+                "Improved error handling in auto-sync service",
+                "Enhanced sync reliability and error reporting"
+            ],
+            bugFixes: []
+        ),
+        ReleaseNote(
             version: "0.2.0",
             date: "October 31, 2025",
             features: [
