@@ -21,6 +21,9 @@ struct SettingsView: View {
             // Sync Section
             syncSection
             
+            // Notifications Section
+            notificationsSection
+            
             // Data Management Section
             dataManagementSection
             
@@ -29,6 +32,10 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .navigationTitle("Settings")
+        .sheet(isPresented: $viewModel.showNotificationSettings) {
+            NotificationSettingsSheet(notificationService: viewModel.notificationService)
+                .frame(minWidth: 500, minHeight: 600)
+        }
         .alert("Confirm Logout", isPresented: $viewModel.showLogoutConfirmation) {
             Button("Cancel", role: .cancel) {
                 viewModel.cancelLogout()
@@ -175,6 +182,41 @@ struct SettingsView: View {
             Text("Synchronization")
         } footer: {
             Text("When enabled, your library will automatically sync with AniList in the background. You can always manually sync from the Library view.")
+        }
+    }
+    
+    // MARK: - Notifications Section
+    
+    private var notificationsSection: some View {
+        Section {
+            Button {
+                viewModel.showNotificationSettings = true
+            } label: {
+                HStack {
+                    Image(systemName: "bell.badge")
+                        .foregroundColor(.accentColor)
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Airing Notifications")
+                            .font(.body)
+                            .foregroundColor(.primary)
+                        
+                        Text("Get notified when new episodes air")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        } header: {
+            Text("Notifications")
         }
     }
     

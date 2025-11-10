@@ -12,7 +12,9 @@ protocol NotificationServiceProtocol {
     func requestAuthorization() async -> Bool
     func scheduleAiringNotification(for anime: UserAnime, episode: Int, airingAt: Date)
     func cancelNotification(for animeId: Int)
+    func cancelNotification(for animeId: Int, episode: Int)
     func cancelAllNotifications()
+    func getPendingNotificationCount() async -> Int
 }
 
 class NotificationService: NotificationServiceProtocol {
@@ -71,7 +73,17 @@ class NotificationService: NotificationServiceProtocol {
         }
     }
     
+    func cancelNotification(for animeId: Int, episode: Int) {
+        let identifier = "anime-\(animeId)-episode-\(episode)"
+        notificationCenter.removePendingNotificationRequests(withIdentifiers: [identifier])
+    }
+    
     func cancelAllNotifications() {
         notificationCenter.removeAllPendingNotificationRequests()
+        notificationCenter.removeAllDeliveredNotifications()
+    }
+    
+    func getPendingNotificationCount() async -> Int {
+        await notificationCenter.pendingNotificationRequests().count
     }
 }

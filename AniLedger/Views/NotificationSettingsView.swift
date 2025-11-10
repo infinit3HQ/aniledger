@@ -13,24 +13,33 @@ struct NotificationSettingsView: View {
     @AppStorage("notificationLeadTime") private var leadTime = 0 // Minutes before airing
     
     @State private var showingPermissionAlert = false
+    @State private var pendingNotificationCount = 0
+    @State private var showingClearConfirmation = false
+    
+    let notificationService: NotificationServiceProtocol?
     
     var body: some View {
         Form {
+            // Enable/Disable Section
             Section {
-                Toggle("Enable Airing Notifications", isOn: $notificationsEnabled)
-                    .onChange(of: notificationsEnabled) { _, newValue in
-                        if newValue {
-                            checkNotificationPermission()
-                        }
+                Toggle(isOn: $notificationsEnabled) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Enable Airing Notifications")
+                        Text("Get notified when new episodes air")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
-            } header: {
-                Text("Notifications")
-            } footer: {
-                Text("Get notified when new episodes of anime you're watching are about to air")
+                }
+                .onChange(of: notificationsEnabled) { _, newValue in
+                    if newValue {
+                        checkNotificationPermission()
+                    }
+                }
             }
             
             if notificationsEnabled {
-                Section {
+                // Timing Section
+                Section("Timing") {
                     Picker("Notify Me", selection: $leadTime) {
                         Text("When Episode Airs").tag(0)
                         Text("15 Minutes Before").tag(15)
@@ -38,39 +47,50 @@ struct NotificationSettingsView: View {
                         Text("1 Hour Before").tag(60)
                         Text("2 Hours Before").tag(120)
                     }
-                } header: {
-                    Text("Timing")
-                } footer: {
-                    Text("Choose when you want to be notified about new episodes")
                 }
                 
-                Section {
-                    HStack {
-                        Text("Monitoring Status")
-                        Spacer()
-                        Text("Active")
-                            .foregroundColor(.green)
-                            .fontWeight(.medium)
+                // Status Section
+                Section("Status") {
+                    LabeledRow(label: "Monitoring", value: "Active", valueColor: .green)
+                    LabeledRow(label: "Check Interval", value: "Every Hour")
+                    LabeledRow(label: "Pending", value: "\(pendingNotificationCount)")
+                }
+                
+                // Clear Section
+                if pendingNotificationCount > 0 {
+                    Section {
+                        Button(role: .destructive) {
+                            showingClearConfirmation = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "trash")
+                                Text("Clear All Notifications")
+                            }
+                        }
+                    } footer: {
+                        Text("Remove \(pendingNotificationCount) scheduled notification\(pendingNotificationCount == 1 ? "" : "s")")
                     }
-                    
-                    HStack {
-                        Text("Check Interval")
-                        Spacer()
-                        Text("Every Hour")
-                            .foregroundColor(.secondary)
-                    }
-                } header: {
-                    Text("Status")
                 }
             }
         }
         .navigationTitle("Airing Notifications")
+        .task {
+            await loadPendingNotificationCount()
+        }
         .alert("Notification Permission Required", isPresented: $showingPermissionAlert) {
             Button("OK") {
                 notificationsEnabled = false
             }
         } message: {
             Text("Please enable notifications in System Settings to receive airing alerts")
+        }
+        .alert("Clear All Notifications?", isPresented: $showingClearConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Clear", role: .destructive) {
+                clearAllNotifications()
+            }
+        } message: {
+            Text("This will remove all \(pendingNotificationCount) scheduled airing notifications")
         }
     }
     
@@ -83,10 +103,38 @@ struct NotificationSettingsView: View {
             }
         }
     }
+    
+    private func loadPendingNotificationCount() async {
+        guard let service = notificationService else { return }
+        pendingNotificationCount = await service.getPendingNotificationCount()
+    }
+    
+    private func clearAllNotifications() {
+        notificationService?.cancelAllNotifications()
+        pendingNotificationCount = 0
+    }
+}
+
+// MARK: - Helper Views
+
+private struct LabeledRow: View {
+    let label: String
+    let value: String
+    var valueColor: Color = .secondary
+    
+    var body: some View {
+        HStack {
+            Text(label)
+            Spacer()
+            Text(value)
+                .foregroundColor(valueColor)
+                .fontWeight(valueColor == .secondary ? .regular : .medium)
+        }
+    }
 }
 
 #Preview {
     NavigationStack {
-        NotificationSettingsView()
+        NotificationSettingsView(notificationService: NotificationService())
     }
 }

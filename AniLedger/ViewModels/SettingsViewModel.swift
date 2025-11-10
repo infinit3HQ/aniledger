@@ -39,12 +39,14 @@ class SettingsViewModel: ObservableObject {
     @Published var resyncError: Error?
     @Published var showResyncError: Bool = false
     @Published var resyncSuccess: Bool = false
+    @Published var showNotificationSettings: Bool = false
     
     // MARK: - Dependencies
     
     private let authenticationService: AuthenticationServiceProtocol
     private let coreDataStack: CoreDataStack
     private let syncService: SyncServiceProtocol?
+    let notificationService: NotificationServiceProtocol?
     private var cancellables = Set<AnyCancellable>()
     
     // MARK: - UserDefaults Keys
@@ -59,11 +61,13 @@ class SettingsViewModel: ObservableObject {
     init(
         authenticationService: AuthenticationServiceProtocol,
         coreDataStack: CoreDataStack,
-        syncService: SyncServiceProtocol? = nil
+        syncService: SyncServiceProtocol? = nil,
+        notificationService: NotificationServiceProtocol? = nil
     ) {
         self.authenticationService = authenticationService
         self.coreDataStack = coreDataStack
         self.syncService = syncService
+        self.notificationService = notificationService
         
         // Load user profile from authentication service
         self.user = authenticationService.currentUser

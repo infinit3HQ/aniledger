@@ -216,6 +216,10 @@ class MockAnimeService: AnimeServiceProtocol {
         return nil
     }
     
+    func setNotificationService(_ service: NotificationServiceProtocol) {
+        // No-op for mock
+    }
+    
     func reset() {
         addAnimeCallCount = 0
         updateProgressCallCount = 0

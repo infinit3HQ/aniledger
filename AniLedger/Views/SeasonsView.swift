@@ -275,4 +275,8 @@ private class MockAnimeService: AnimeServiceProtocol {
     func getUserAnime(byAnimeId animeId: Int) throws -> UserAnime? {
         return nil
     }
+    
+    func setNotificationService(_ service: NotificationServiceProtocol) {
+        // No-op for preview
+    }
 }

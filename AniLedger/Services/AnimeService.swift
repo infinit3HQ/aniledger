@@ -20,13 +20,19 @@ protocol AnimeServiceProtocol {
     func reorderAnime(in status: AnimeStatus, from sourceIndex: Int, to destinationIndex: Int) throws
     func getUserAnime(byId id: Int) throws -> UserAnime?
     func getUserAnime(byAnimeId animeId: Int) throws -> UserAnime?
+    func setNotificationService(_ service: NotificationServiceProtocol)
 }
 
 class AnimeService: AnimeServiceProtocol {
     private let coreDataStack: CoreDataStack
+    private var notificationService: NotificationServiceProtocol?
     
     init(coreDataStack: CoreDataStack = .shared) {
         self.coreDataStack = coreDataStack
+    }
+    
+    func setNotificationService(_ service: NotificationServiceProtocol) {
+        self.notificationService = service
     }
     
     // MARK: - Add Anime to Library
@@ -79,11 +85,20 @@ class AnimeService: AnimeServiceProtocol {
             ))
         }
         
+        let oldProgress = Int(userAnimeEntity.progress)
         userAnimeEntity.progress = Int32(progress)
         userAnimeEntity.needsSync = true
         userAnimeEntity.lastModified = Date()
         
         try coreDataStack.saveContext()
+        
+        // Cancel notifications for episodes the user has now watched
+        if progress > oldProgress {
+            let animeId = Int(userAnimeEntity.animeId)
+            for episode in (oldProgress + 1)...progress {
+                notificationService?.cancelNotification(for: animeId, episode: episode)
+            }
+        }
         
         return try convertToUserAnime(userAnimeEntity)
     }
@@ -141,8 +156,13 @@ class AnimeService: AnimeServiceProtocol {
             ))
         }
         
+        let animeId = Int(userAnimeEntity.animeId)
+        
         context.delete(userAnimeEntity)
         try coreDataStack.saveContext()
+        
+        // Cancel all notifications for this anime
+        notificationService?.cancelNotification(for: animeId)
     }
     
     // MARK: - Fetch Anime
@@ -195,6 +215,7 @@ class AnimeService: AnimeServiceProtocol {
         }
         
         let oldStatus = userAnimeEntity.status
+        let animeId = Int(userAnimeEntity.animeId)
         
         // Update status
         userAnimeEntity.status = toStatus.rawValue
@@ -211,6 +232,11 @@ class AnimeService: AnimeServiceProtocol {
         // Reorder remaining items in old status
         if let oldStatusEnum = AnimeStatus(rawValue: oldStatus ?? "") {
             try reorderAfterRemoval(in: oldStatusEnum, context: context)
+        }
+        
+        // Cancel notifications if moving away from "Watching" status
+        if toStatus != .watching {
+            notificationService?.cancelNotification(for: animeId)
         }
         
         return try convertToUserAnime(userAnimeEntity)

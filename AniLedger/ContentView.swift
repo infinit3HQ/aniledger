@@ -14,6 +14,7 @@ struct ContentView: View {
     let coreDataStack: CoreDataStack
     let keychainManager: KeychainManagerProtocol
     let apiClient: AniListAPIClientProtocol
+    let notificationService: NotificationServiceProtocol
     
     // MARK: - Navigation State
     
@@ -218,7 +219,8 @@ struct ContentView: View {
         SettingsViewModel(
             authenticationService: authenticationService,
             coreDataStack: coreDataStack,
-            syncService: createSyncService()
+            syncService: createSyncService(),
+            notificationService: notificationService
         )
     }
 }
@@ -250,7 +252,8 @@ enum NavigationItem: Hashable {
         authenticationService: authService,
         coreDataStack: CoreDataStack.preview,
         keychainManager: keychainManager,
-        apiClient: apiClient
+        apiClient: apiClient,
+        notificationService: NotificationService()
     )
 }
 
@@ -266,7 +269,8 @@ enum NavigationItem: Hashable {
         authenticationService: authService,
         coreDataStack: CoreDataStack.preview,
         keychainManager: keychainManager,
-        apiClient: apiClient
+        apiClient: apiClient,
+        notificationService: NotificationService()
     )
 }
 

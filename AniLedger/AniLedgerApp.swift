@@ -44,8 +44,14 @@ struct AniLedgerApp: App {
             apiClient: apiClient
         )
         
-        // Initialize sync service
+        // Initialize notification service
+        let notificationService = NotificationService()
+        
+        // Initialize anime service and wire up notification service
         let animeService = AnimeService(coreDataStack: .shared)
+        animeService.setNotificationService(notificationService)
+        
+        // Initialize sync service
         let syncService = SyncService(
             apiClient: apiClient,
             coreDataStack: .shared,
@@ -53,8 +59,7 @@ struct AniLedgerApp: App {
             userIdProvider: { authService.currentUser?.id }
         )
         
-        // Initialize notification and airing schedule services
-        let notificationService = NotificationService()
+        // Initialize airing schedule service
         let airingScheduleService = AiringScheduleService(
             animeService: animeService,
             notificationService: notificationService,
@@ -80,7 +85,8 @@ struct AniLedgerApp: App {
                 authenticationService: authenticationService,
                 coreDataStack: coreDataStack,
                 keychainManager: keychainManager,
-                apiClient: apiClient
+                apiClient: apiClient,
+                notificationService: notificationService
             )
             .environment(\.managedObjectContext, coreDataStack.viewContext)
             .environmentObject(coreDataStack)
@@ -96,6 +102,7 @@ struct AniLedgerApp: App {
                     startAiringMonitoring()
                 } else {
                     airingScheduleService.stopMonitoring()
+                    notificationService.cancelAllNotifications()
                 }
             }
         }

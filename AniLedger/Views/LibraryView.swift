@@ -880,6 +880,10 @@ private class MockAnimeService: AnimeServiceProtocol {
     func getUserAnime(byAnimeId animeId: Int) throws -> UserAnime? {
         nil
     }
+    
+    func setNotificationService(_ service: NotificationServiceProtocol) {
+        // No-op for preview
+    }
 }
 
 private class MockSyncService: SyncServiceProtocol {

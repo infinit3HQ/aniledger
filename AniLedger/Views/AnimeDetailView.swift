@@ -148,6 +148,7 @@ struct AnimeDetailView: View {
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.secondary)
                 }
+                .contentShape(Circle())
             }
             .buttonStyle(.plain)
             .keyboardShortcut(.cancelAction)
@@ -665,6 +666,10 @@ private class MockAnimeService: AnimeServiceProtocol {
     
     func getUserAnime(byAnimeId animeId: Int) throws -> UserAnime? {
         nil
+    }
+    
+    func setNotificationService(_ service: NotificationServiceProtocol) {
+        // No-op for preview
     }
 }
 
