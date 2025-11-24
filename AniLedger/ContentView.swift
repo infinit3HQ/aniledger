@@ -36,6 +36,19 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(colorScheme)
+        .sheet(item: $deepLinkAnime) { anime in
+            AnimeDetailView(viewModel: AnimeDetailViewModel(
+                anime: anime.anime,
+                userAnime: anime,
+                animeService: createAnimeService(),
+                syncService: createSyncService()
+            ))
+            .frame(minWidth: 600, idealWidth: 600, maxWidth: 600,
+                   minHeight: 700, idealHeight: 700, maxHeight: 700)
+        }
+        .onReceive(notificationService.deepLinkPublisher) { animeId in
+            handleDeepLink(animeId: animeId)
+        }
     }
     
     // MARK: - Main Navigation View
@@ -222,6 +235,21 @@ struct ContentView: View {
             syncService: createSyncService(),
             notificationService: notificationService
         )
+    }
+    
+    // MARK: - Deep Link Handling
+    
+    @State private var deepLinkAnime: UserAnime?
+    
+    private func handleDeepLink(animeId: Int) {
+        let animeService = createAnimeService()
+        do {
+            if let anime = try animeService.getUserAnime(byAnimeId: animeId) {
+                deepLinkAnime = anime
+            }
+        } catch {
+            print("Failed to fetch anime for deep link: \(error)")
+        }
     }
 }
 

@@ -5,10 +5,12 @@
 //  Service for managing local notifications for airing anime episodes
 //
 
+import Combine
 import Foundation
 import UserNotifications
 
 protocol NotificationServiceProtocol {
+    var deepLinkPublisher: PassthroughSubject<Int, Never> { get }
     func requestAuthorization() async -> Bool
     func scheduleAiringNotification(for anime: UserAnime, episode: Int, airingAt: Date)
     func cancelNotification(for animeId: Int)
@@ -17,8 +19,14 @@ protocol NotificationServiceProtocol {
     func getPendingNotificationCount() async -> Int
 }
 
-class NotificationService: NotificationServiceProtocol {
+class NotificationService: NSObject, NotificationServiceProtocol, UNUserNotificationCenterDelegate {
     private let notificationCenter = UNUserNotificationCenter.current()
+    let deepLinkPublisher = PassthroughSubject<Int, Never>()
+    
+    override init() {
+        super.init()
+        notificationCenter.delegate = self
+    }
     
     // MARK: - Authorization
     
@@ -37,7 +45,7 @@ class NotificationService: NotificationServiceProtocol {
     func scheduleAiringNotification(for anime: UserAnime, episode: Int, airingAt: Date) {
         let content = UNMutableNotificationContent()
         content.title = "New Episode Available!"
-        content.body = "\(anime.anime.title) - Episode \(episode) is now airing"
+        content.body = "\(anime.anime.title.preferred) - Episode \(episode) is now airing"
         content.sound = .default
         content.badge = 1
         
@@ -85,5 +93,25 @@ class NotificationService: NotificationServiceProtocol {
     
     func getPendingNotificationCount() async -> Int {
         await notificationCenter.pendingNotificationRequests().count
+    }
+    
+    // MARK: - UNUserNotificationCenterDelegate
+    
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        // Show notification even when app is in foreground
+        completionHandler([.banner, .sound, .badge])
+    }
+    
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+        let userInfo = response.notification.request.content.userInfo
+        
+        if let animeId = userInfo["animeId"] as? Int {
+            // Publish deep link event
+            DispatchQueue.main.async {
+                self.deepLinkPublisher.send(animeId)
+            }
+        }
+        
+        completionHandler()
     }
 }
