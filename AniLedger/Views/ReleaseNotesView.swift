@@ -147,6 +147,28 @@ struct ReleaseNote {
     
     static let allReleases: [ReleaseNote] = [
         ReleaseNote(
+            version: "0.4.0",
+            date: "August 27, 2026",
+            features: [
+                "Interactive Anime Scoring: Score and rate anime directly from the Anime Detail sheet with instant AniList remote sync",
+                "In-Library Search & Sorting: Search within your library and sort lists by Title (A-Z, Z-A), Highest Score, or Most Progress",
+                "Real-Time Library Badges: Visual status pills (Watching, Completed, Dropped, Plan to Watch, On Hold) displayed across Search results, Discover, and Seasonal anime cards",
+                "Upcoming Year Seasons: Extended seasonal browser to explore announced anime for the upcoming calendar year"
+            ],
+            improvements: [
+                "Periodic Auto-Sync: 15-minute background auto-sync timer keeping your library fresh and synced with AniList",
+                "Architecture & Lifecycle: Retained ViewModels in StateObjects to prevent redundant state re-instantiations",
+                "Throttled Airing Schedule Checks: Request throttling and error isolation to avoid rate-limiting and query failures",
+                "Comprehensive Test Coverage: Added unit test suites for ViewModels, Services, and Notifications"
+            ],
+            bugFixes: [
+                "Fixed remote deletion sync so deleted anime are removed on AniList without resurrecting",
+                "Fixed Discover and Search 'Add to Library' actions to automatically queue and push AniList sync",
+                "Fixed Search and Discover detail views to properly detect existing library anime instead of showing 'Add to Library'",
+                "Fixed Core Data memory store recreation to prevent stale faulted objects"
+            ]
+        ),
+        ReleaseNote(
             version: "0.3.0",
             date: "November 11, 2025",
             features: [

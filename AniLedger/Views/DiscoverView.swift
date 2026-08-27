@@ -55,6 +55,7 @@ struct DiscoverView: View {
                             AnimeSection(
                                 title: "Current Season",
                                 anime: viewModel.currentSeasonAnime,
+                                statusProvider: { try? animeService.getUserAnime(byAnimeId: $0)?.status },
                                 onAnimeTap: { anime in
                                     HapticFeedback.selection.trigger()
                                     selectedAnime = anime
@@ -66,6 +67,7 @@ struct DiscoverView: View {
                             AnimeSection(
                                 title: "Upcoming",
                                 anime: viewModel.upcomingAnime,
+                                statusProvider: { try? animeService.getUserAnime(byAnimeId: $0)?.status },
                                 onAnimeTap: { anime in
                                     HapticFeedback.selection.trigger()
                                     selectedAnime = anime
@@ -77,6 +79,7 @@ struct DiscoverView: View {
                             AnimeSection(
                                 title: "Trending Now",
                                 anime: viewModel.trendingAnime,
+                                statusProvider: { try? animeService.getUserAnime(byAnimeId: $0)?.status },
                                 onAnimeTap: { anime in
                                     HapticFeedback.selection.trigger()
                                     selectedAnime = anime
@@ -116,8 +119,10 @@ struct DiscoverView: View {
     // MARK: - Helper Methods
     
     private func createDetailViewModel(for anime: Anime) -> AnimeDetailViewModel {
-        AnimeDetailViewModel(
+        let userAnime = try? animeService.getUserAnime(byAnimeId: anime.id)
+        return AnimeDetailViewModel(
             anime: anime,
+            userAnime: userAnime,
             animeService: animeService,
             syncService: syncService
         )
@@ -262,6 +267,7 @@ struct FilterBar: View {
 struct AnimeSection: View {
     let title: String
     let anime: [Anime]
+    var statusProvider: ((Int) -> AnimeStatus?)? = nil
     let onAnimeTap: (Anime) -> Void
     
     var body: some View {
@@ -291,7 +297,8 @@ struct AnimeSection: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: 16) {
                         ForEach(anime) { animeItem in
-                            AnimeCardView(anime: animeItem, width: 150)
+                            let status = statusProvider?(animeItem.id)
+                            AnimeCardView(anime: animeItem, width: 150, userStatus: status)
                                 .onTapGesture {
                                     onAnimeTap(animeItem)
                                 }

@@ -488,4 +488,32 @@ final class LibraryViewModelTests: XCTestCase {
             XCTFail("Expected networkError")
         }
     }
+    
+    // MARK: - Search and Sorting Tests
+    
+    func testFilteredListWithSearchQuery() {
+        let animeA = createTestUserAnime(id: 1, anime: createTestAnime(id: 1, title: "Steins;Gate"), status: .watching)
+        let animeB = createTestUserAnime(id: 2, anime: createTestAnime(id: 2, title: "Attack on Titan"), status: .watching)
+        viewModel.watchingList = [animeA, animeB]
+        
+        viewModel.searchQuery = "steins"
+        let filtered = viewModel.filteredList(for: .watching)
+        
+        XCTAssertEqual(filtered.count, 1)
+        XCTAssertEqual(filtered.first?.anime.title.preferred, "Steins;Gate")
+    }
+    
+    func testFilteredListWithSorting() {
+        let animeA = createTestUserAnime(id: 1, anime: createTestAnime(id: 1, title: "Bleach"), status: .watching)
+        let animeB = createTestUserAnime(id: 2, anime: createTestAnime(id: 2, title: "Attack on Titan"), status: .watching)
+        viewModel.watchingList = [animeA, animeB]
+        
+        viewModel.sortOption = .titleAscending
+        let sortedAsc = viewModel.filteredList(for: .watching)
+        XCTAssertEqual(sortedAsc.first?.anime.title.preferred, "Attack on Titan")
+        
+        viewModel.sortOption = .titleDescending
+        let sortedDesc = viewModel.filteredList(for: .watching)
+        XCTAssertEqual(sortedDesc.first?.anime.title.preferred, "Bleach")
+    }
 }

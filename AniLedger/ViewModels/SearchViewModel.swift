@@ -21,14 +21,16 @@ class SearchViewModel: ObservableObject {
     
     private let apiClient: AniListAPIClientProtocol
     private let animeService: AnimeServiceProtocol
+    private let syncService: SyncServiceProtocol?
     private let cacheManager = CacheManager.shared
     private var cancellables = Set<AnyCancellable>()
     
     // MARK: - Initialization
     
-    init(apiClient: AniListAPIClientProtocol, animeService: AnimeServiceProtocol) {
+    init(apiClient: AniListAPIClientProtocol, animeService: AnimeServiceProtocol, syncService: SyncServiceProtocol? = nil) {
         self.apiClient = apiClient
         self.animeService = animeService
+        self.syncService = syncService
         
         setupSearchDebouncing()
     }
@@ -104,6 +106,18 @@ class SearchViewModel: ObservableObject {
         Task {
             do {
                 _ = try animeService.addAnimeToLibrary(anime, status: status, progress: 0, score: nil)
+                
+                // Queue the operation for sync with AniList
+                syncService?.queueOperation(.updateProgress(
+                    mediaId: anime.id,
+                    progress: 0,
+                    status: status.rawValue
+                ))
+                
+                // Trigger sync (non-blocking)
+                Task.detached(priority: .background) { [weak self] in
+                    try? await self?.syncService?.processSyncQueue()
+                }
             } catch let kiroError as KiroError {
                 error = kiroError
             } catch {

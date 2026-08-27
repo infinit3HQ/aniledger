@@ -53,7 +53,8 @@ struct SeasonsView: View {
                             GridItem(.adaptive(minimum: 150, maximum: 200), spacing: 16)
                         ], spacing: 20) {
                             ForEach(viewModel.seasonalAnime) { anime in
-                                AnimeCardView(anime: anime, width: 150)
+                                let userStatus = try? animeService.getUserAnime(byAnimeId: anime.id)?.status
+                                AnimeCardView(anime: anime, width: 150, userStatus: userStatus)
                                     .onTapGesture {
                                         HapticFeedback.selection.trigger()
                                         selectedAnime = anime
@@ -154,8 +155,10 @@ struct SeasonsView: View {
     // MARK: - Helper Methods
     
     private func createDetailViewModel(for anime: Anime) -> AnimeDetailViewModel {
-        AnimeDetailViewModel(
+        let userAnime = try? animeService.getUserAnime(byAnimeId: anime.id)
+        return AnimeDetailViewModel(
             anime: anime,
+            userAnime: userAnime,
             animeService: animeService,
             syncService: syncService
         )

@@ -204,7 +204,8 @@ struct SearchView: View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 ForEach(viewModel.searchResults) { anime in
-                    SearchResultRow(anime: anime)
+                    let userAnime = try? animeService.getUserAnime(byAnimeId: anime.id)
+                    SearchResultRow(anime: anime, userAnime: userAnime)
                         .contentShape(Rectangle())
                         .onTapGesture {
                             HapticFeedback.selection.trigger()
@@ -230,8 +231,10 @@ struct SearchView: View {
     // MARK: - Helper Methods
     
     private func createDetailViewModel(for anime: Anime) -> AnimeDetailViewModel {
-        AnimeDetailViewModel(
+        let userAnime = try? animeService.getUserAnime(byAnimeId: anime.id)
+        return AnimeDetailViewModel(
             anime: anime,
+            userAnime: userAnime,
             animeService: animeService,
             syncService: syncService
         )
@@ -242,6 +245,7 @@ struct SearchView: View {
 
 struct SearchResultRow: View {
     let anime: Anime
+    var userAnime: UserAnime? = nil
     
     @State private var isHovered = false
     
@@ -283,7 +287,41 @@ struct SearchResultRow: View {
                         .foregroundColor(.secondary)
                 }
                 
-                if !anime.genres.isEmpty {
+                if let userAnime = userAnime {
+                    HStack(spacing: 6) {
+                        HStack(spacing: 3) {
+                            Image(systemName: userAnime.status.iconName)
+                                .font(.system(size: 9))
+                            Text(userAnime.status.displayName)
+                                .font(.caption2)
+                                .fontWeight(.semibold)
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule()
+                                .fill(userAnime.status.color)
+                        )
+                        
+                        if userAnime.progress > 0 {
+                            Text("Ep \(userAnime.progress)")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        if let score = userAnime.score, score > 0 {
+                            HStack(spacing: 2) {
+                                Image(systemName: "star.fill")
+                                    .font(.system(size: 8))
+                                    .foregroundColor(.yellow)
+                                Text(String(format: "%.1f", score))
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                } else if !anime.genres.isEmpty {
                     Text(anime.genres.prefix(3).joined(separator: ", "))
                         .font(.caption)
                         .foregroundColor(.secondary)

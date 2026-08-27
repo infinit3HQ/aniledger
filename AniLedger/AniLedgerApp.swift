@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 
 @main
 struct AniLedgerApp: App {
@@ -18,6 +19,7 @@ struct AniLedgerApp: App {
     
     private let keychainManager: KeychainManagerProtocol
     private let apiClient: AniListAPIClientProtocol
+    private let animeService: AnimeServiceProtocol
     private let syncService: SyncServiceProtocol
     private let airingScheduleService: AiringScheduleServiceProtocol
     private let notificationService: NotificationServiceProtocol
@@ -69,6 +71,7 @@ struct AniLedgerApp: App {
         // Store dependencies
         self.keychainManager = keychainManager
         self.apiClient = apiClient
+        self.animeService = animeService
         self.syncService = syncService
         self.notificationService = notificationService
         self.airingScheduleService = airingScheduleService
@@ -86,6 +89,8 @@ struct AniLedgerApp: App {
                 coreDataStack: coreDataStack,
                 keychainManager: keychainManager,
                 apiClient: apiClient,
+                animeService: animeService,
+                syncService: syncService,
                 notificationService: notificationService
             )
             .environment(\.managedObjectContext, coreDataStack.viewContext)
@@ -94,6 +99,9 @@ struct AniLedgerApp: App {
             .onAppear {
                 performAutoSyncIfEnabled()
                 setupNotifications()
+            }
+            .onReceive(Timer.publish(every: Config.autoSyncInterval, on: .main, in: .common).autoconnect()) { _ in
+                performAutoSyncIfEnabled()
             }
             .onChange(of: authenticationService.isAuthenticated) { _, isAuthenticated in
                 // Trigger auto-sync when user becomes authenticated

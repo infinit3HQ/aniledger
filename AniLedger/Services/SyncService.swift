@@ -18,7 +18,8 @@ protocol SyncServiceProtocol {
 enum SyncOperation {
     case updateProgress(mediaId: Int, progress: Int, status: String?)
     case updateStatus(mediaId: Int, status: String)
-    case deleteEntry(mediaId: Int)
+    case updateScore(mediaId: Int, score: Double)
+    case deleteEntry(entryId: Int? = nil, mediaId: Int)
 }
 
 // Actor for thread-safe sync state management
@@ -276,7 +277,9 @@ class SyncService: SyncServiceProtocol {
         // Extract mediaId from operation
         let mediaId: Int
         switch operation {
-        case .updateProgress(let id, _, _), .updateStatus(let id, _), .deleteEntry(let id):
+        case .updateProgress(let id, _, _), .updateStatus(let id, _), .updateScore(let id, _):
+            mediaId = id
+        case .deleteEntry(_, let id):
             mediaId = id
         }
         
@@ -317,12 +320,26 @@ class SyncService: SyncServiceProtocol {
             ]
             queueItem.payload = try? JSONSerialization.data(withJSONObject: payload).base64EncodedString()
             
-        case .deleteEntry(let mediaId):
+        case .updateScore(let mediaId, let score):
+            queueItem.operation = "updateScore"
+            queueItem.entityType = "UserAnime"
+            queueItem.entityId = Int64(mediaId)
+            
+            let payload: [String: Any] = [
+                "mediaId": mediaId,
+                "score": score
+            ]
+            queueItem.payload = try? JSONSerialization.data(withJSONObject: payload).base64EncodedString()
+            
+        case .deleteEntry(let entryId, let mediaId):
             queueItem.operation = "deleteEntry"
             queueItem.entityType = "UserAnime"
             queueItem.entityId = Int64(mediaId)
             
-            let payload: [String: Any] = ["mediaId": mediaId]
+            var payload: [String: Any] = ["mediaId": mediaId]
+            if let entryId = entryId {
+                payload["entryId"] = entryId
+            }
             queueItem.payload = try? JSONSerialization.data(withJSONObject: payload).base64EncodedString()
         }
         
@@ -350,9 +367,20 @@ class SyncService: SyncServiceProtocol {
             ]
             queueItem.payload = try? JSONSerialization.data(withJSONObject: payload).base64EncodedString()
             
-        case .deleteEntry(let mediaId):
+        case .updateScore(let mediaId, let score):
+            queueItem.operation = "updateScore"
+            let payload: [String: Any] = [
+                "mediaId": mediaId,
+                "score": score
+            ]
+            queueItem.payload = try? JSONSerialization.data(withJSONObject: payload).base64EncodedString()
+            
+        case .deleteEntry(let entryId, let mediaId):
             queueItem.operation = "deleteEntry"
-            let payload: [String: Any] = ["mediaId": mediaId]
+            var payload: [String: Any] = ["mediaId": mediaId]
+            if let entryId = entryId {
+                payload["entryId"] = entryId
+            }
             queueItem.payload = try? JSONSerialization.data(withJSONObject: payload).base64EncodedString()
         }
         
@@ -374,6 +402,7 @@ class SyncService: SyncServiceProtocol {
                 return
             } else {
                 // Update with remote data
+                existingUserAnime.id = Int64(entry.id)
                 existingUserAnime.status = entry.status
                 existingUserAnime.progress = Int32(entry.progress)
                 existingUserAnime.score = entry.score ?? 0.0
@@ -420,11 +449,13 @@ class SyncService: SyncServiceProtocol {
             let status = payload["status"] as? String
             
             let mutation = UpdateProgressMutation(mediaId: mediaId, progress: progress, status: status)
-            let _: SaveMediaListEntryResponse = try await apiClient.execute(mutation: mutation)
+            let response: SaveMediaListEntryResponse = try await apiClient.execute(mutation: mutation)
+            let remoteEntryId = response.SaveMediaListEntry.id
             
-            // Update local needsSync flag
+            // Update local needsSync flag and entry id
             await context.perform {
                 if let userAnime = self.coreDataStack.fetchUserAnime(byAnimeId: Int64(mediaId), context: context) {
+                    userAnime.id = Int64(remoteEntryId)
                     userAnime.needsSync = false
                     try? context.save()
                 }
@@ -441,20 +472,55 @@ class SyncService: SyncServiceProtocol {
             }
             
             let mutation = UpdateStatusMutation(mediaId: mediaId, status: status)
-            let _: SaveMediaListEntryResponse = try await apiClient.execute(mutation: mutation)
+            let response: SaveMediaListEntryResponse = try await apiClient.execute(mutation: mutation)
+            let remoteEntryId = response.SaveMediaListEntry.id
             
-            // Update local needsSync flag
+            // Update local needsSync flag and entry id
             await context.perform {
                 if let userAnime = self.coreDataStack.fetchUserAnime(byAnimeId: Int64(mediaId), context: context) {
+                    userAnime.id = Int64(remoteEntryId)
+                    userAnime.needsSync = false
+                    try? context.save()
+                }
+            }
+            
+        case "updateScore":
+            guard let mediaId = payload["mediaId"] as? Int,
+                  let score = payload["score"] as? Double else {
+                throw KiroError.decodingError(underlying: NSError(
+                    domain: "SyncService",
+                    code: 2004,
+                    userInfo: [NSLocalizedDescriptionKey: "Invalid updateScore payload"]
+                ))
+            }
+            
+            let mutation = UpdateScoreMutation(mediaId: mediaId, score: score)
+            let response: SaveMediaListEntryResponse = try await apiClient.execute(mutation: mutation)
+            let remoteEntryId = response.SaveMediaListEntry.id
+            
+            // Update local needsSync flag and entry id
+            await context.perform {
+                if let userAnime = self.coreDataStack.fetchUserAnime(byAnimeId: Int64(mediaId), context: context) {
+                    userAnime.id = Int64(remoteEntryId)
                     userAnime.needsSync = false
                     try? context.save()
                 }
             }
             
         case "deleteEntry":
-            // AniList doesn't have a delete mutation, so we just remove from local
-            // The entry will be removed during next sync if it doesn't exist remotely
-            break
+            guard let mediaId = payload["mediaId"] as? Int else {
+                throw KiroError.decodingError(underlying: NSError(
+                    domain: "SyncService",
+                    code: 2005,
+                    userInfo: [NSLocalizedDescriptionKey: "Invalid deleteEntry payload"]
+                ))
+            }
+            
+            let entryId = payload["entryId"] as? Int
+            if let idToDelete = entryId, idToDelete > 0 {
+                let mutation = DeleteMediaListEntryMutation(id: idToDelete)
+                let _: DeleteMediaListEntryResponse = try await apiClient.execute(mutation: mutation)
+            }
             
         default:
             throw KiroError.apiError(message: "Unknown operation type", statusCode: nil)

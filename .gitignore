@@ -110,3 +110,8 @@ Config.local.swift
 # Backup files
 *.bak
 *.backup
+
+# Distribution & Packaging
+dist/
+*.dmg
+dmg_temp/

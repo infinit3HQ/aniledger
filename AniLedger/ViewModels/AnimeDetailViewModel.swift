@@ -118,6 +118,37 @@ class AnimeDetailViewModel: ObservableObject {
         isUpdating = false
     }
     
+    // MARK: - Score Management
+    
+    func updateScore(_ newScore: Double) async {
+        guard let userAnime = userAnime else { return }
+        
+        isUpdating = true
+        error = nil
+        
+        do {
+            let updated = try animeService.updateAnimeScore(userAnime.id, score: newScore)
+            self.userAnime = updated
+            
+            // Queue the operation for sync
+            syncService.queueOperation(.updateScore(
+                mediaId: anime.id,
+                score: newScore
+            ))
+            
+            // Trigger sync (non-blocking, will be debounced)
+            Task.detached(priority: .background) {
+                try? await self.syncService.processSyncQueue()
+            }
+        } catch let kiroError as KiroError {
+            error = kiroError
+        } catch {
+            self.error = .coreDataError(underlying: error)
+        }
+        
+        isUpdating = false
+    }
+    
     // MARK: - Library Management
     
     func addToLibrary(status: AnimeStatus) async {
@@ -159,7 +190,7 @@ class AnimeDetailViewModel: ObservableObject {
             try animeService.deleteAnimeFromLibrary(userAnime.id)
             
             // Queue the operation for sync
-            syncService.queueOperation(.deleteEntry(mediaId: anime.id))
+            syncService.queueOperation(.deleteEntry(entryId: Int(userAnime.id), mediaId: anime.id))
             
             self.userAnime = nil
             self.isInLibrary = false

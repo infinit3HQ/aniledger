@@ -3,29 +3,51 @@ import SwiftUI
 struct AnimeCardView: View {
     let anime: Anime
     let width: CGFloat
+    let userStatus: AnimeStatus?
     
     @State private var isHovered = false
     
-    init(anime: Anime, width: CGFloat = 150) {
+    init(anime: Anime, width: CGFloat = 150, userStatus: AnimeStatus? = nil) {
         self.anime = anime
         self.width = width
+        self.userStatus = userStatus
     }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            AsyncImageView(
-                url: anime.coverImage.large,
-                width: width,
-                height: width * 1.4
-            )
-            .frame(width: width, height: width * 1.4)
-            .cornerRadius(8)
-            .shadow(radius: isHovered ? 8 : 2)
-            .scaleEffect(isHovered ? 1.05 : 1.0)
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.accentColor, lineWidth: isHovered ? 2 : 0)
-            )
+            ZStack(alignment: .topTrailing) {
+                AsyncImageView(
+                    url: anime.coverImage.large,
+                    width: width,
+                    height: width * 1.4
+                )
+                .frame(width: width, height: width * 1.4)
+                .cornerRadius(8)
+                .shadow(radius: isHovered ? 8 : 2)
+                .scaleEffect(isHovered ? 1.05 : 1.0)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.accentColor, lineWidth: isHovered ? 2 : 0)
+                )
+                
+                if let status = userStatus {
+                    HStack(spacing: 3) {
+                        Image(systemName: status.iconName)
+                            .font(.system(size: 8))
+                        Text(status.displayName)
+                            .font(.system(size: 9, weight: .bold))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(
+                        Capsule()
+                            .fill(status.color.opacity(0.9))
+                            .shadow(radius: 2)
+                    )
+                    .padding(6)
+                }
+            }
             
             Text(anime.title.preferred)
                 .font(.caption)

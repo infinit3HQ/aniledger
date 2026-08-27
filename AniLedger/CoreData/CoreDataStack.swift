@@ -341,6 +341,9 @@ class CoreDataStack: ObservableObject {
             ]
         )
         
+        // Reset in-memory viewContext to prevent stale faulted objects
+        persistentContainer.viewContext.reset()
+        
         print("Persistent store destroyed and recreated successfully")
     }
 }

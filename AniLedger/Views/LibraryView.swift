@@ -55,7 +55,21 @@ struct LibraryView: View {
             }
         }
         .navigationTitle("Library")
+        .searchable(text: $viewModel.searchQuery, prompt: "Search \(selectedStatus.displayName)...")
         .toolbar {
+            ToolbarItem(placement: .automatic) {
+                Menu {
+                    Picker("Sort By", selection: $viewModel.sortOption) {
+                        ForEach(LibrarySortOption.allCases) { option in
+                            Text(option.rawValue).tag(option)
+                        }
+                    }
+                } label: {
+                    Label("Sort", systemImage: "arrow.up.arrow.down")
+                }
+                .help("Sort list")
+            }
+            
             ToolbarItem(placement: .automatic) {
                 Picker("View Mode", selection: $viewMode) {
                     ForEach(LibraryViewMode.allCases, id: \.self) { mode in
@@ -377,13 +391,7 @@ struct LibraryView: View {
     // MARK: - Helper Properties
     
     private var currentList: [UserAnime] {
-        switch selectedStatus {
-        case .watching: return viewModel.watchingList
-        case .completed: return viewModel.completedList
-        case .planToWatch: return viewModel.planToWatchList
-        case .onHold: return viewModel.onHoldList
-        case .dropped: return viewModel.droppedList
-        }
+        viewModel.filteredList(for: selectedStatus)
     }
     
     private func listCount(for status: AnimeStatus) -> Int {

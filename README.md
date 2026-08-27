@@ -5,16 +5,21 @@ A macOS-native anime tracker application built with SwiftUI that integrates with
 ## Features
 
 - 📚 **Library Management**: Organize anime into Watching, Completed, Plan to Watch, On Hold, and Dropped lists
-- 🔄 **AniList Sync**: Seamlessly sync your progress with AniList.co
-- 🔍 **Discover & Search**: Browse seasonal anime, trending titles, and search for specific anime
-- � **Seasonal Browser**: Explore anime by season (Winter, Spring, Summer, Fall) and year
-- � **Progress Tracking**: Update episode progress with visual progress indicators
-- 💾 **Offline Support**: View and edit your library offline with automatic sync when reconnected
-- 🌐 **Network Monitoring**: Visual offline indicator when disconnected
-- 🎨 **Native macOS UI**: Beautiful SwiftUI interface with light/dark mode support
+- 🔄 **AniList Sync**: Seamless two-way sync with AniList.co, with automatic deletion and progress tracking
+- ⏰ **Periodic Auto-Sync**: 15-minute background auto-sync to keep your library and remote lists synchronized
+- ⭐ **Interactive Scoring**: Rate and score your anime directly with remote AniList score sync
+- 🔎 **In-Library Search & Sorting**: Quickly search within your library and sort by Title (A-Z / Z-A), Highest Score, or Most Progress
+- 🏷️ **Real-Time Status Badges**: Visual status indicators (*Watching*, *Completed*, *Dropped*, *Plan to Watch*, *On Hold*) across Search, Discover, and Seasonal anime
+- 🔍 **Discover & Search**: Browse seasonal anime, trending titles, and search with instant library awareness
+- 📅 **Extended Seasonal Browser**: Explore anime by season (Winter, Spring, Summer, Fall) and browse upcoming years
+- 📈 **Progress Tracking**: Update episode progress with visual indicators and automatic completion prompts
+- 🔔 **Airing Notifications**: Proactive episode airing alerts with resilient scheduling and request throttling
+- 💾 **Offline Support**: Full offline caching with automated sync queueing upon reconnection
+- 🌐 **Network Monitoring**: Visual offline indicators and network state monitoring
+- 🎨 **Native macOS UI**: Modern SwiftUI navigation split view interface with system, light, and dark theme support
 - 🔐 **Secure Authentication**: OAuth2 flow with secure Keychain token storage
-- 🖼️ **Image Caching**: Efficient image loading and caching for smooth performance
-- 🔄 **Data Management**: Re-sync from AniList, clear local data, and automatic migration support
+- 🖼️ **Image Caching**: High-performance multi-tier image caching
+- 🔄 **Data Management**: Re-sync from AniList, clear local data, and robust Core Data persistence
 
 ## Requirements
 
@@ -396,13 +401,30 @@ Contributions are welcome! Please feel free to submit issues or pull requests.
 - Use SwiftUI for all UI components
 - Follow the existing MVVM architecture pattern
 
-## Documentation
+## Version History
 
-- **[QUICK_START.md](QUICK_START.md)**: Fast setup guide (5 minutes)
-- **[DATA_MIGRATION_AND_CLEANUP.md](AniLedger/CoreData/DATA_MIGRATION_AND_CLEANUP.md)**: Data management features
-- **[REUSABLE_COMPONENTS_SUMMARY.md](AniLedger/Views/REUSABLE_COMPONENTS_SUMMARY.md)**: UI component documentation
-- **[Services README](AniLedger/Services/README.md)**: Service layer documentation
-- **[APP_INFORMATION_MANAGEMENT.md](AniLedger/Documentation/APP_INFORMATION_MANAGEMENT.md)**: App information and version management
+### Version 0.4.0 (August 2026)
+- **Interactive Scoring**: Rate anime directly in Anime Detail with AniList synchronization
+- **In-Library Search & Sort**: Search library and sort by Title, Score, or Progress
+- **Real-Time Library Badges**: Library status indicators across Search, Discover, and Seasons
+- **Extended Seasons Browser**: Browse upcoming anime for the next calendar year
+- **Periodic Auto-Sync**: 15-minute background auto-sync timer
+- **Robust Deletion Sync**: Synchronized deletion from AniList preventing resurrection
+- **State Lifecycle Optimization**: Retained ViewModels preventing redundant re-instantiations
+- **Expanded Test Suites**: Added unit test coverage for ViewModels, Services, and Notifications
+
+### Version 0.3.0 (November 2025)
+- **Airing Notifications**: Proactive episode notifications with AiringScheduleService
+- **Banner Image Support**: Richer visuals for anime entities
+- **App Information Management**: AppInfo, AboutView, and ReleaseNotesView
+
+### Version 0.2.0 (October 2025)
+- **Filter & Sort Controls**: Season, format, and score filtering
+- **Offline Batching**: Reliable offline edits and conflict resolution
+- **Performance**: Reduced memory consumption and improved image caching
+
+### Version 0.1.0 (October 2025)
+- **Initial Release**: Core library tracking, AniList OAuth sync, discover, and search
 
 ## License
 

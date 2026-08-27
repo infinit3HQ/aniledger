@@ -123,3 +123,11 @@ struct SimplifiedMediaListEntry: Decodable {
 struct SimplifiedMediaResponse: Decodable {
     let id: Int
 }
+
+struct DeleteMediaListEntryResponse: Decodable {
+    let DeleteMediaListEntry: DeletedResponse?
+}
+
+struct DeletedResponse: Decodable {
+    let deleted: Bool?
+}

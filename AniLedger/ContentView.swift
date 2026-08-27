@@ -14,7 +14,17 @@ struct ContentView: View {
     let coreDataStack: CoreDataStack
     let keychainManager: KeychainManagerProtocol
     let apiClient: AniListAPIClientProtocol
+    let animeService: AnimeServiceProtocol
+    let syncService: SyncServiceProtocol
     let notificationService: NotificationServiceProtocol
+    
+    // MARK: - Retained ViewModels
+    
+    @StateObject private var libraryViewModel: LibraryViewModel
+    @StateObject private var discoverViewModel: DiscoverViewModel
+    @StateObject private var seasonsViewModel: SeasonsViewModel
+    @StateObject private var searchViewModel: SearchViewModel
+    @StateObject private var settingsViewModel: SettingsViewModel
     
     // MARK: - Navigation State
     
@@ -24,6 +34,65 @@ struct ContentView: View {
     // MARK: - Theme State
     
     @AppStorage("themePreference") private var themePreference: String = ThemePreference.system.rawValue
+    
+    // MARK: - Initialization
+    
+    init(
+        authenticationService: AuthenticationService,
+        coreDataStack: CoreDataStack,
+        keychainManager: KeychainManagerProtocol,
+        apiClient: AniListAPIClientProtocol,
+        animeService: AnimeServiceProtocol? = nil,
+        syncService: SyncServiceProtocol? = nil,
+        notificationService: NotificationServiceProtocol
+    ) {
+        self.authenticationService = authenticationService
+        self.coreDataStack = coreDataStack
+        self.keychainManager = keychainManager
+        self.apiClient = apiClient
+        self.notificationService = notificationService
+        
+        let resolvedAnimeService = animeService ?? AnimeService(coreDataStack: coreDataStack)
+        let resolvedSyncService = syncService ?? SyncService(
+            apiClient: apiClient,
+            coreDataStack: coreDataStack,
+            animeService: resolvedAnimeService,
+            userIdProvider: { [weak authenticationService] in
+                authenticationService?.currentUser?.id
+            }
+        )
+        
+        self.animeService = resolvedAnimeService
+        self.syncService = resolvedSyncService
+        
+        _libraryViewModel = StateObject(wrappedValue: LibraryViewModel(
+            animeService: resolvedAnimeService,
+            syncService: resolvedSyncService
+        ))
+        
+        _discoverViewModel = StateObject(wrappedValue: DiscoverViewModel(
+            apiClient: apiClient,
+            animeService: resolvedAnimeService,
+            syncService: resolvedSyncService
+        ))
+        
+        _seasonsViewModel = StateObject(wrappedValue: SeasonsViewModel(
+            apiClient: apiClient
+        ))
+        
+        _searchViewModel = StateObject(wrappedValue: SearchViewModel(
+            apiClient: apiClient,
+            animeService: resolvedAnimeService,
+            syncService: resolvedSyncService
+        ))
+        
+        _settingsViewModel = StateObject(wrappedValue: SettingsViewModel(
+            authenticationService: authenticationService,
+            coreDataStack: coreDataStack,
+            syncService: resolvedSyncService,
+            notificationService: notificationService
+        ))
+    }
     
     // MARK: - Body
     
@@ -40,8 +109,8 @@ struct ContentView: View {
             AnimeDetailView(viewModel: AnimeDetailViewModel(
                 anime: anime.anime,
                 userAnime: anime,
-                animeService: createAnimeService(),
-                syncService: createSyncService()
+                animeService: animeService,
+                syncService: syncService
             ))
             .frame(minWidth: 600, idealWidth: 600, maxWidth: 600,
                    minHeight: 700, idealHeight: 700, maxHeight: 700)
@@ -109,9 +178,9 @@ struct ContentView: View {
         switch selectedNavigation {
         case .library:
             LibraryView(
-                viewModel: createLibraryViewModel(),
-                animeService: createAnimeService(),
-                syncService: createSyncService()
+                viewModel: libraryViewModel,
+                animeService: animeService,
+                syncService: syncService
             )
             .transition(.asymmetric(
                 insertion: .move(edge: .trailing).combined(with: .opacity),
@@ -120,9 +189,9 @@ struct ContentView: View {
             
         case .discover:
             DiscoverView(
-                viewModel: createDiscoverViewModel(),
-                animeService: createAnimeService(),
-                syncService: createSyncService()
+                viewModel: discoverViewModel,
+                animeService: animeService,
+                syncService: syncService
             )
             .transition(.asymmetric(
                 insertion: .move(edge: .trailing).combined(with: .opacity),
@@ -131,9 +200,9 @@ struct ContentView: View {
             
         case .seasons:
             SeasonsView(
-                viewModel: createSeasonsViewModel(),
-                animeService: createAnimeService(),
-                syncService: createSyncService()
+                viewModel: seasonsViewModel,
+                animeService: animeService,
+                syncService: syncService
             )
             .transition(.asymmetric(
                 insertion: .move(edge: .trailing).combined(with: .opacity),
@@ -142,9 +211,9 @@ struct ContentView: View {
             
         case .search:
             SearchView(
-                viewModel: createSearchViewModel(),
-                animeService: createAnimeService(),
-                syncService: createSyncService()
+                viewModel: searchViewModel,
+                animeService: animeService,
+                syncService: syncService
             )
             .transition(.asymmetric(
                 insertion: .move(edge: .trailing).combined(with: .opacity),
@@ -152,7 +221,7 @@ struct ContentView: View {
             ))
             
         case .settings:
-            SettingsView(viewModel: createSettingsViewModel())
+            SettingsView(viewModel: settingsViewModel)
                 .transition(.asymmetric(
                     insertion: .move(edge: .trailing).combined(with: .opacity),
                     removal: .move(edge: .leading).combined(with: .opacity)
@@ -186,63 +255,11 @@ struct ContentView: View {
         }
     }
     
-    // MARK: - Service Factory Methods
-    
-    private func createAnimeService() -> AnimeServiceProtocol {
-        AnimeService(coreDataStack: coreDataStack)
-    }
-    
-    private func createSyncService() -> SyncServiceProtocol {
-        SyncService(
-            apiClient: apiClient,
-            coreDataStack: coreDataStack,
-            animeService: createAnimeService(),
-            userIdProvider: { [weak authenticationService] in
-                authenticationService?.currentUser?.id
-            }
-        )
-    }
-    
-    private func createLibraryViewModel() -> LibraryViewModel {
-        LibraryViewModel(
-            animeService: createAnimeService(),
-            syncService: createSyncService()
-        )
-    }
-    
-    private func createDiscoverViewModel() -> DiscoverViewModel {
-        DiscoverViewModel(
-            apiClient: apiClient,
-            animeService: createAnimeService()
-        )
-    }
-    
-    private func createSeasonsViewModel() -> SeasonsViewModel {
-        SeasonsViewModel(apiClient: apiClient)
-    }
-    
-    private func createSearchViewModel() -> SearchViewModel {
-        SearchViewModel(
-            apiClient: apiClient,
-            animeService: createAnimeService()
-        )
-    }
-    
-    private func createSettingsViewModel() -> SettingsViewModel {
-        SettingsViewModel(
-            authenticationService: authenticationService,
-            coreDataStack: coreDataStack,
-            syncService: createSyncService(),
-            notificationService: notificationService
-        )
-    }
-    
     // MARK: - Deep Link Handling
     
     @State private var deepLinkAnime: UserAnime?
     
     private func handleDeepLink(animeId: Int) {
-        let animeService = createAnimeService()
         do {
             if let anime = try animeService.getUserAnime(byAnimeId: animeId) {
                 deepLinkAnime = anime

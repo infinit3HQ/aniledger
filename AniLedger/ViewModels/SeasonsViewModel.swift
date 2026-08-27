@@ -100,7 +100,7 @@ class SeasonsViewModel: ObservableObject {
     // MARK: - Year Navigation
     
     func incrementYear() {
-        guard selectedYear < currentYear else { return }
+        guard selectedYear < currentYear + 1 else { return }
         selectedYear += 1
         loadSeasonalAnime()
     }

@@ -43,9 +43,9 @@ struct AnimeDetailView: View {
                     // Genres
                     genresSection
                     
-                    // User Score (if available)
-                    if let score = viewModel.userAnime?.score, score > 0 {
-                        scoreSection(score: score)
+                    // User Score (if in library)
+                    if viewModel.isInLibrary {
+                        scoreSection
                     }
                     
                     // Action Buttons
@@ -384,17 +384,30 @@ struct AnimeDetailView: View {
     
     // MARK: - Score Section
     
-    private func scoreSection(score: Double) -> some View {
+    private var scoreSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Your Score")
                 .font(.headline)
             
-            HStack(spacing: 8) {
-                Image(systemName: "star.fill")
-                    .foregroundColor(.yellow)
-                Text(String(format: "%.1f / 10", score))
-                    .font(.title3)
-                    .fontWeight(.semibold)
+            HStack(spacing: 12) {
+                Image(systemName: (viewModel.userAnime?.score ?? 0) > 0 ? "star.fill" : "star")
+                    .foregroundColor((viewModel.userAnime?.score ?? 0) > 0 ? .yellow : .secondary)
+                
+                Picker("Score", selection: Binding(
+                    get: { Int(viewModel.userAnime?.score ?? 0) },
+                    set: { newScore in
+                        Task {
+                            await viewModel.updateScore(Double(newScore))
+                        }
+                    }
+                )) {
+                    Text("No Score").tag(0)
+                    ForEach(1...10, id: \.self) { score in
+                        Text("\(score) / 10").tag(score)
+                    }
+                }
+                .pickerStyle(.menu)
+                .frame(width: 140)
             }
         }
         .transition(.opacity)

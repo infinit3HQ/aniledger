@@ -8,6 +8,16 @@
 import Foundation
 import Combine
 
+enum LibrarySortOption: String, CaseIterable, Identifiable {
+    case custom = "Default Order"
+    case titleAscending = "Title (A-Z)"
+    case titleDescending = "Title (Z-A)"
+    case scoreDescending = "Highest Score"
+    case progressDescending = "Most Progress"
+    
+    var id: String { rawValue }
+}
+
 @MainActor
 class LibraryViewModel: ObservableObject {
     // MARK: - Published Properties
@@ -17,6 +27,8 @@ class LibraryViewModel: ObservableObject {
     @Published var planToWatchList: [UserAnime] = []
     @Published var onHoldList: [UserAnime] = []
     @Published var droppedList: [UserAnime] = []
+    @Published var searchQuery: String = ""
+    @Published var sortOption: LibrarySortOption = .custom
     @Published var isLoading: Bool = false
     @Published var error: KiroError?
     
@@ -35,6 +47,46 @@ class LibraryViewModel: ObservableObject {
     init(animeService: AnimeServiceProtocol, syncService: SyncServiceProtocol) {
         self.animeService = animeService
         self.syncService = syncService
+    }
+    
+    // MARK: - Filtered List Helper
+    
+    func filteredList(for status: AnimeStatus) -> [UserAnime] {
+        let list: [UserAnime]
+        switch status {
+        case .watching: list = watchingList
+        case .completed: list = completedList
+        case .planToWatch: list = planToWatchList
+        case .onHold: list = onHoldList
+        case .dropped: list = droppedList
+        }
+        
+        var result = list
+        
+        let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedQuery.isEmpty {
+            let query = trimmedQuery.lowercased()
+            result = result.filter { item in
+                item.anime.title.preferred.lowercased().contains(query) ||
+                (item.anime.title.english?.lowercased().contains(query) ?? false) ||
+                item.anime.title.romaji.lowercased().contains(query)
+            }
+        }
+        
+        switch sortOption {
+        case .custom:
+            break
+        case .titleAscending:
+            result.sort { $0.anime.title.preferred.localizedCaseInsensitiveCompare($1.anime.title.preferred) == .orderedAscending }
+        case .titleDescending:
+            result.sort { $0.anime.title.preferred.localizedCaseInsensitiveCompare($1.anime.title.preferred) == .orderedDescending }
+        case .scoreDescending:
+            result.sort { ($0.score ?? 0) > ($1.score ?? 0) }
+        case .progressDescending:
+            result.sort { $0.progress > $1.progress }
+        }
+        
+        return result
     }
     
     // MARK: - Load Lists
@@ -145,7 +197,7 @@ class LibraryViewModel: ObservableObject {
                 try animeService.deleteAnimeFromLibrary(anime.id)
                 
                 // Queue delete operation for sync
-                syncService.queueOperation(.deleteEntry(mediaId: anime.anime.id))
+                syncService.queueOperation(.deleteEntry(entryId: Int(anime.id), mediaId: anime.anime.id))
                 
                 // Reload lists to reflect changes
                 loadLists(forceRefresh: true)

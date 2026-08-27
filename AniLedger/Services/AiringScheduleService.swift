@@ -61,9 +61,16 @@ class AiringScheduleService: AiringScheduleServiceProtocol {
         // Get all anime in "Watching" status
         let watchingAnime = try animeService.fetchAnimeByStatus(.watching)
         
-        // Fetch airing schedule for each anime
+        // Fetch airing schedule for each anime with resilience and throttling
         for userAnime in watchingAnime {
-            try await checkAiringSchedule(for: userAnime)
+            do {
+                try await checkAiringSchedule(for: userAnime)
+                // Throttle requests slightly to respect rate limits
+                try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+            } catch {
+                print("Failed to check airing schedule for anime \(userAnime.anime.title.preferred): \(error)")
+                // Continue with other anime even if one fails
+            }
         }
     }
     

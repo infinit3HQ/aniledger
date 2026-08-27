@@ -1,5 +1,4 @@
-//
-//  KiroError.swift
+//  AniLedgerError.swift
 //  AniLedger
 //
 //  Created by Niraj Dilshan on 10/13/2025.
@@ -8,7 +7,9 @@
 import Foundation
 import SwiftUI
 
-enum KiroError: LocalizedError {
+typealias KiroError = AniLedgerError
+
+enum AniLedgerError: LocalizedError {
     case authenticationFailed(reason: String)
     case networkError(underlying: Error)
     case apiError(message: String, statusCode: Int?)

@@ -64,3 +64,47 @@ struct UpdateStatusMutation: GraphQLMutation {
         ]
     }
 }
+
+struct UpdateScoreMutation: GraphQLMutation {
+    let mediaId: Int
+    let score: Double
+    
+    var mutationString: String {
+        """
+        mutation ($mediaId: Int, $score: Float) {
+          SaveMediaListEntry(mediaId: $mediaId, score: $score) {
+            id
+            score
+            media {
+              id
+            }
+          }
+        }
+        """
+    }
+    
+    var variables: [String: Any] {
+        [
+            "mediaId": mediaId,
+            "score": score
+        ]
+    }
+}
+
+struct DeleteMediaListEntryMutation: GraphQLMutation {
+    let id: Int
+    
+    var mutationString: String {
+        """
+        mutation ($id: Int) {
+          DeleteMediaListEntry(id: $id) {
+            deleted
+          }
+        }
+        """
+    }
+    
+    var variables: [String: Any] {
+        ["id": id]
+    }
+}
