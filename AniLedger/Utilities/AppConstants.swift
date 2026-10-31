@@ -178,7 +178,6 @@ enum AppConstants {
     
     enum AniList {
         static let clientIdEnvKey = "ANILIST_CLIENT_ID"
-        static let clientSecretEnvKey = "ANILIST_CLIENT_SECRET"
         static let redirectURI = "aniledger://auth-callback"
         static let authorizationURL = "https://anilist.co/api/v2/oauth/authorize"
         static let tokenURL = "https://anilist.co/api/v2/oauth/token"

@@ -180,29 +180,37 @@ class CoreDataStack: ObservableObject {
     func deleteAllUserAnime(context: NSManagedObjectContext? = nil) throws {
         let ctx = context ?? viewContext
         let request = NSFetchRequest<NSFetchRequestResult>(entityName: "UserAnimeEntity")
-        let deleteRequest = NSBatchDeleteRequest(fetchRequest: request)
-        
-        try ctx.execute(deleteRequest)
-        try saveContext()
+        try executeBatchDelete(request, in: ctx)
     }
     
     /// Delete all anime
     func deleteAllAnime(context: NSManagedObjectContext? = nil) throws {
         let ctx = context ?? viewContext
         let request = NSFetchRequest<NSFetchRequestResult>(entityName: "AnimeEntity")
-        let deleteRequest = NSBatchDeleteRequest(fetchRequest: request)
-        
-        try ctx.execute(deleteRequest)
-        try saveContext()
+        try executeBatchDelete(request, in: ctx)
     }
     
     /// Delete all sync queue items
     func deleteAllSyncQueue(context: NSManagedObjectContext? = nil) throws {
         let ctx = context ?? viewContext
         let request = NSFetchRequest<NSFetchRequestResult>(entityName: "SyncQueueEntity")
+        try executeBatchDelete(request, in: ctx)
+    }
+    
+    /// Runs a batch delete and merges the deletions into the view context.
+    /// Batch deletes bypass the context, so without the merge, screens kept
+    /// showing deleted objects until they were manually refreshed.
+    private func executeBatchDelete(_ request: NSFetchRequest<NSFetchRequestResult>, in context: NSManagedObjectContext) throws {
         let deleteRequest = NSBatchDeleteRequest(fetchRequest: request)
+        deleteRequest.resultType = .resultTypeObjectIDs
         
-        try ctx.execute(deleteRequest)
+        let result = try context.execute(deleteRequest) as? NSBatchDeleteResult
+        if let deletedIDs = result?.result as? [NSManagedObjectID], !deletedIDs.isEmpty {
+            NSManagedObjectContext.mergeChanges(
+                fromRemoteContextSave: [NSDeletedObjectsKey: deletedIDs],
+                into: [viewContext]
+            )
+        }
         try saveContext()
     }
     

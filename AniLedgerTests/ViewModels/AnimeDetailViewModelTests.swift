@@ -79,7 +79,7 @@ class AnimeDetailViewModelTests: XCTestCase {
         )
         
         // Progress to last episode (25)
-        viewModel.userAnime = UserAnime(
+        let atEpisode24 = UserAnime(
             id: 100,
             anime: sampleAnime,
             status: .watching,
@@ -89,6 +89,9 @@ class AnimeDetailViewModelTests: XCTestCase {
             needsSync: false,
             lastModified: Date()
         )
+        // incrementProgress() reads the current entry from the store
+        mockAnimeService.animeByStatus[.watching] = [atEpisode24]
+        viewModel.userAnime = atEpisode24
         
         viewModel.incrementProgress()
         

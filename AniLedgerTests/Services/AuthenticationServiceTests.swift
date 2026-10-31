@@ -324,6 +324,42 @@ final class AuthenticationServiceTests: XCTestCase {
         XCTAssertNil(authService.currentUser)
     }
     
+    func testExpiredTokenLogsOutOnLaunch() async throws {
+        // Given - AniList rejects the stored token
+        try mockKeychainManager.save(token: "expired_token", for: "anilist_access_token")
+        mockAPIClient.shouldThrowError = KiroError.authenticationFailed(reason: KiroError.invalidTokenReason)
+        
+        // When
+        authService = AuthenticationService(
+            keychainManager: mockKeychainManager,
+            apiClient: mockAPIClient
+        )
+        
+        let expectation = XCTestExpectation(description: "User profile fetch attempted")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            expectation.fulfill()
+        }
+        wait(for: [expectation], timeout: 1.0)
+        
+        // Then - user is sent back to login and the token is removed
+        XCTAssertFalse(authService.isAuthenticated)
+        XCTAssertNil(try mockKeychainManager.retrieve(for: "anilist_access_token"))
+    }
+    
+    func testExtractAccessTokenFromImplicitGrantCallback() {
+        let url = URL(string: "aniledger://auth-callback#access_token=abc123&token_type=Bearer&expires_in=31536000")!
+        let token = AuthenticationService.extractAccessToken(from: url)
+        
+        XCTAssertEqual(token?.accessToken, "abc123")
+        XCTAssertEqual(token?.tokenType, "Bearer")
+        XCTAssertEqual(token?.expiresIn, 31536000)
+    }
+    
+    func testExtractAccessTokenRejectsCallbackWithoutToken() {
+        let url = URL(string: "aniledger://auth-callback?code=abc123")!
+        XCTAssertNil(AuthenticationService.extractAccessToken(from: url))
+    }
+    
     func testKeychainSaveFailure() throws {
         // Given
         mockKeychainManager.shouldThrowOnSave = true

@@ -59,6 +59,9 @@ struct ContentView: View {
             animeService: resolvedAnimeService,
             userIdProvider: { [weak authenticationService] in
                 authenticationService?.currentUser?.id
+            },
+            userLoader: { [weak authenticationService] in
+                try await authenticationService?.loadUserProfileIfNeeded()
             }
         )
         

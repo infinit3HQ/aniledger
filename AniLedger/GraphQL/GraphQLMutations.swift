@@ -108,3 +108,37 @@ struct DeleteMediaListEntryMutation: GraphQLMutation {
         ["id": id]
     }
 }
+
+/// Saves any combination of status, progress and score in one request.
+/// Used by the sync queue so that several offline edits to the same entry
+/// are pushed together instead of overwriting each other.
+struct SaveMediaListEntryMutation: GraphQLMutation {
+    let mediaId: Int
+    let status: String?
+    let progress: Int?
+    let score: Double?
+    
+    var mutationString: String {
+        """
+        mutation ($mediaId: Int, $status: MediaListStatus, $progress: Int, $score: Float) {
+          SaveMediaListEntry(mediaId: $mediaId, status: $status, progress: $progress, score: $score) {
+            id
+            status
+            progress
+            score
+            media {
+              id
+            }
+          }
+        }
+        """
+    }
+    
+    var variables: [String: Any] {
+        var vars: [String: Any] = ["mediaId": mediaId]
+        if let status = status { vars["status"] = status }
+        if let progress = progress { vars["progress"] = progress }
+        if let score = score { vars["score"] = score }
+        return vars
+    }
+}

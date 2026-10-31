@@ -29,10 +29,26 @@ class AnimeDetailViewModel: ObservableObject {
         self.syncService = syncService
     }
     
+    // MARK: - Entry Lookup
+    
+    /// Re-reads this anime's library entry from Core Data.
+    ///
+    /// The entry passed in when the sheet opened can go stale: a background
+    /// sync replaces the local placeholder ID with AniList's entry ID, or
+    /// removes the entry if it was deleted on AniList. Acting on the stale ID
+    /// failed with "User anime not found".
+    @discardableResult
+    private func refreshEntryFromStore() -> UserAnime? {
+        let current = try? animeService.getUserAnime(byAnimeId: anime.id)
+        userAnime = current
+        isInLibrary = current != nil
+        return current
+    }
+    
     // MARK: - Progress Management
     
     func incrementProgress() {
-        guard let userAnime = userAnime else { return }
+        guard let userAnime = refreshEntryFromStore() else { return }
         
         let newProgress = userAnime.progress + 1
         
@@ -47,7 +63,7 @@ class AnimeDetailViewModel: ObservableObject {
     }
     
     func decrementProgress() {
-        guard let userAnime = userAnime else { return }
+        guard let userAnime = refreshEntryFromStore() else { return }
         
         // Don't allow negative progress
         let newProgress = max(0, userAnime.progress - 1)
@@ -58,7 +74,7 @@ class AnimeDetailViewModel: ObservableObject {
     }
     
     func updateProgress(_ newProgress: Int) async {
-        guard let userAnime = userAnime else { return }
+        guard let userAnime = refreshEntryFromStore() else { return }
         
         isUpdating = true
         error = nil
@@ -90,7 +106,7 @@ class AnimeDetailViewModel: ObservableObject {
     // MARK: - Status Management
     
     func updateStatus(_ newStatus: AnimeStatus) async {
-        guard let userAnime = userAnime else { return }
+        guard let userAnime = refreshEntryFromStore() else { return }
         
         isUpdating = true
         error = nil
@@ -121,7 +137,7 @@ class AnimeDetailViewModel: ObservableObject {
     // MARK: - Score Management
     
     func updateScore(_ newScore: Double) async {
-        guard let userAnime = userAnime else { return }
+        guard let userAnime = refreshEntryFromStore() else { return }
         
         isUpdating = true
         error = nil
@@ -181,7 +197,7 @@ class AnimeDetailViewModel: ObservableObject {
     }
     
     func removeFromLibrary() async {
-        guard let userAnime = userAnime else { return }
+        guard let userAnime = refreshEntryFromStore() else { return }
         
         isUpdating = true
         error = nil

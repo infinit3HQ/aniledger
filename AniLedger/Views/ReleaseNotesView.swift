@@ -147,6 +147,29 @@ struct ReleaseNote {
     
     static let allReleases: [ReleaseNote] = [
         ReleaseNote(
+            version: "0.5.0",
+            date: "October 31, 2026",
+            features: [
+                "Simpler, working login: AniLedger now signs in with AniList's implicit grant, so the downloaded app logs in without any extra setup",
+                "Library updates by itself: changes from the detail sheet, Search, Discover and background syncs appear without pressing Sync",
+                "Non-blocking sync errors: a failed sync shows a small banner with Retry and Dismiss instead of hiding your library"
+            ],
+            improvements: [
+                "Expired or revoked AniList logins now return you to the login screen instead of failing on every screen",
+                "Launching offline no longer causes 'User not authenticated' errors once you're back online",
+                "Sync requests now run one after another, so pressing Sync never silently does nothing",
+                "Universal build for Apple Silicon and Intel Macs"
+            ],
+            bugFixes: [
+                "Fixed offline edits overwriting each other (for example, a score change erasing a progress change)",
+                "Fixed entries getting stuck and never updating from AniList after repeated sync failures",
+                "Fixed deleted entries coming back after a sync",
+                "Fixed 'User anime not found' errors when acting on an entry right after a sync",
+                "Fixed the library error screen's Retry button doing nothing",
+                "Fixed 'Clear data' leaving deleted items on screen"
+            ]
+        ),
+        ReleaseNote(
             version: "0.4.0",
             date: "August 27, 2026",
             features: [

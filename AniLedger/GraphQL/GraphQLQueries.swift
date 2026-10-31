@@ -182,3 +182,25 @@ struct FetchUserProfileQuery: GraphQLQuery {
         nil
     }
 }
+
+/// Looks up the user's list entry ID for a media item.
+/// Needed for deletes because entries created offline only have a local
+/// placeholder ID until they are synced.
+struct FetchMediaListEntryIdQuery: GraphQLQuery {
+    let userId: Int
+    let mediaId: Int
+    
+    var queryString: String {
+        """
+        query ($userId: Int, $mediaId: Int) {
+          MediaList(userId: $userId, mediaId: $mediaId) {
+            id
+          }
+        }
+        """
+    }
+    
+    var variables: [String: Any]? {
+        ["userId": userId, "mediaId": mediaId]
+    }
+}

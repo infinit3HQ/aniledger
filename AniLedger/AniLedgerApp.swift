@@ -58,7 +58,8 @@ struct AniLedgerApp: App {
             apiClient: apiClient,
             coreDataStack: .shared,
             animeService: animeService,
-            userIdProvider: { authService.currentUser?.id }
+            userIdProvider: { authService.currentUser?.id },
+            userLoader: { try await authService.loadUserProfileIfNeeded() }
         )
         
         // Initialize airing schedule service
@@ -104,8 +105,10 @@ struct AniLedgerApp: App {
                 performAutoSyncIfEnabled()
             }
             .onChange(of: authenticationService.isAuthenticated) { _, isAuthenticated in
-                // Trigger auto-sync when user becomes authenticated
-                if isAuthenticated && authenticationService.currentUser != nil {
+                // Trigger auto-sync when user becomes authenticated.
+                // The profile may still be loading (e.g. offline launch);
+                // performAutoSyncIfEnabled loads it before syncing.
+                if isAuthenticated {
                     performAutoSyncIfEnabled()
                     startAiringMonitoring()
                 } else {
@@ -132,7 +135,8 @@ struct AniLedgerApp: App {
                 // Then perform incremental sync
                 try await syncService.syncUserLists()
             } catch {
-                // Silently fail - don't block app launch
+                // Silently fail - don't block the app. An expired token signs
+                // the user out via the .aniListSessionExpired notification.
             }
         }
     }

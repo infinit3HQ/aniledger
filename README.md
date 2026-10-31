@@ -23,8 +23,8 @@ A macOS-native anime tracker application built with SwiftUI that integrates with
 
 ## Requirements
 
-- macOS 12.0 (Monterey) or later
-- Xcode 14.0 or later
+- macOS 26.0 or later (the project's current deployment target)
+- Xcode 26.0 or later
 - An AniList account (free at [anilist.co](https://anilist.co))
 
 ## Setup Instructions
@@ -56,60 +56,26 @@ Fill in the following information:
 
 Click **"Save"** to create your client.
 
-#### Step 3: Copy Your Credentials
+#### Step 3: Copy Your Client ID
 
-After creating the client, you'll see your **Client ID** and **Client Secret** displayed. 
+After creating the client, copy the **Client ID**. AniLedger uses AniList's [implicit grant](https://docs.anilist.co/guide/auth/implicit), so the Client Secret is not needed and should not be added anywhere in the project.
 
-**Important:** Copy **both** the Client ID and Client Secret. AniList requires the Client Secret for the OAuth token exchange step.
+#### Step 4: Configure the Client ID
 
-#### Step 4: Configure Your Credentials
+**For running from Xcode:** set the `ANILIST_CLIENT_ID` environment variable in **Product → Scheme → Edit Scheme… → Run → Arguments → Environment Variables**, or run `./setup.sh`.
 
-Choose one of the following methods to securely configure your credentials:
-
-**Method 1: Automated Setup Script (Recommended)**
-
-Run the setup script and follow the prompts:
+**For release builds (DMG):** put the ID in `.env` (or export it), then build:
 
 ```bash
-./setup.sh
+cp .env.example .env   # then set ANILIST_CLIENT_ID
+./scripts/build-dmg.sh
 ```
 
-The script will guide you through configuring your credentials in Xcode.
+The script embeds the ID in the app's `Info.plist` (key `AniListClientID`) and stops with an error if it's missing, so a release can't ship without a working login.
 
-**Method 2: Xcode Environment Variables (Manual)**
+### About the Client ID
 
-1. In Xcode, go to: **Product → Scheme → Edit Scheme...**
-2. Select **"Run"** in the left sidebar
-3. Go to the **"Arguments"** tab
-4. Under **"Environment Variables"**, click the **"+"** button
-5. Add two variables:
-   - **Name**: `ANILIST_CLIENT_ID`, **Value**: Your actual Client ID
-   - **Name**: `ANILIST_CLIENT_SECRET`, **Value**: Your actual Client Secret
-6. Click **"Close"**
-
-**Method 3: .env File**
-
-1. Copy the example file:
-   ```bash
-   cp .env.example .env
-   ```
-2. Edit `.env` and replace the placeholder values with your actual credentials
-3. Source the file before opening Xcode:
-   ```bash
-   source .env && open AniLedger.xcodeproj
-   ```
-
-The `.env` file is gitignored and will not be committed to version control.
-
-### Security Note: About Client Secret
-
-AniList requires both Client ID and Client Secret for OAuth token exchange. While native applications cannot perfectly secure secrets (they can be extracted through reverse engineering), AniList's OAuth implementation requires the Client Secret for the token exchange step. This is a limitation of AniList's OAuth flow, not a design choice.
-
-**Best Practices:**
-- Never commit credentials to version control
-- Use environment variables for configuration
-- Rotate credentials if they are exposed
-- The `.env` file and Xcode scheme files are gitignored for your protection
+The client ID is public by design: it appears in the AniList login URL. Access tokens from the implicit grant are valid for one year; when a token expires or is revoked, AniLedger signs the user out and shows the login screen.
 
 ### 3. Build and Run
 
@@ -260,13 +226,13 @@ AniLedger uses a sidebar navigation with the following sections:
 **Solutions**:
 - Verify your environment variables are set correctly
 - Check Xcode scheme: Product → Scheme → Edit Scheme → Run → Arguments → Environment Variables
-- Ensure both `ANILIST_CLIENT_ID` and `ANILIST_CLIENT_SECRET` are set
+- Ensure `ANILIST_CLIENT_ID` is set (release builds: in `.env` before running `./scripts/build-dmg.sh`)
 - Try running the setup script: `./setup.sh`
 
 **Problem**: "Authentication failed" error
 
 **Solutions**:
-- Verify your Client ID and Client Secret are correct
+- Verify your Client ID is correct
 - Ensure the redirect URI in AniList settings matches exactly: `aniledger://auth-callback`
 - Check that your AniList API client is active (not disabled)
 - Try logging out and logging in again

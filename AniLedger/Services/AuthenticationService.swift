@@ -31,14 +31,12 @@ class AuthenticationService: NSObject, AuthenticationServiceProtocol, Observable
     private let apiClient: AniListAPIClientProtocol
     
     // OAuth Configuration - using Config constants
-    private let clientId = Config.aniListClientId
-    private let clientSecret = Config.aniListClientSecret
-    private let redirectUri = Config.redirectUri
+    private var clientId: String { Config.aniListClientId }
     private let authorizationEndpoint = Config.authorizationUrl
-    private let tokenEndpoint = "https://anilist.co/api/v2/oauth/token"
     
     // Keychain keys - using Config constants
     private let accessTokenKey = Config.keychainAccessTokenKey
+    private var sessionExpiredObserver: NSObjectProtocol?
     
     // MARK: - Initialization
     
@@ -47,35 +45,78 @@ class AuthenticationService: NSObject, AuthenticationServiceProtocol, Observable
         self.apiClient = apiClient
         super.init()
         
+        observeSessionExpiry()
+        
         // Check if user is already authenticated
         checkAuthenticationState()
     }
     
     // MARK: - Authentication State
     
-    /// Check if user has a valid token stored
+    /// Check if user has a valid token stored.
+    ///
+    /// If AniList rejects the stored token (expired or revoked), the token is
+    /// cleared so the user is sent back to the login screen. If the profile
+    /// fetch fails for other reasons (e.g. offline), the user stays signed in
+    /// and the profile is loaded later via `loadUserProfileIfNeeded()`.
     private func checkAuthenticationState() {
+        let storedToken: String?
         do {
-            if let token = try keychainManager.retrieve(for: accessTokenKey), !token.isEmpty {
-                // Fetch user profile in background BEFORE setting isAuthenticated
-                Task {
-                    do {
-                        try await fetchUserProfile()
-                        await MainActor.run {
-                            isAuthenticated = true
-                        }
-                    } catch {
-                        // If profile fetch fails, still mark as authenticated
-                        // User can retry sync manually
-                        await MainActor.run {
-                            isAuthenticated = true
-                        }
-                    }
-                }
-            }
+            storedToken = try keychainManager.retrieve(for: accessTokenKey)
         } catch {
             isAuthenticated = false
+            return
         }
+
+        guard let token = storedToken, !token.isEmpty else { return }
+
+        Task {
+            do {
+                try await fetchUserProfile()
+                await MainActor.run { isAuthenticated = true }
+            } catch let error as KiroError where Self.isInvalidTokenError(error) {
+                await MainActor.run { self.logout() }
+            } catch {
+                await MainActor.run { isAuthenticated = true }
+            }
+        }
+    }
+
+    /// Loads the user profile if it hasn't been loaded yet (e.g. the app
+    /// launched offline). Logs the user out if AniList rejects the token.
+    func loadUserProfileIfNeeded() async throws {
+        guard isAuthenticated, currentUser == nil else { return }
+
+        do {
+            try await fetchUserProfile()
+        } catch let error as KiroError where Self.isInvalidTokenError(error) {
+            await MainActor.run { self.logout() }
+            throw error
+        }
+    }
+
+    /// Signs the user out when any API call reports the token is no longer
+    /// valid. At launch (not yet authenticated) checkAuthenticationState()
+    /// handles it instead.
+    private func observeSessionExpiry() {
+        sessionExpiredObserver = NotificationCenter.default.addObserver(
+            forName: .aniListSessionExpired,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self = self, self.isAuthenticated else { return }
+                self.logout()
+            }
+        }
+    }
+
+    /// True when the error means AniList rejected the access token.
+    static func isInvalidTokenError(_ error: KiroError) -> Bool {
+        if case .authenticationFailed(let reason) = error {
+            return reason == KiroError.invalidTokenReason
+        }
+        return false
     }
     
     // MARK: - Authentication
@@ -84,16 +125,20 @@ class AuthenticationService: NSObject, AuthenticationServiceProtocol, Observable
     /// - Returns: AuthToken containing access token and metadata
     /// - Throws: KiroError if authentication fails
     func authenticate() async throws -> AuthToken {
+        guard Config.isClientIdConfigured else {
+            throw KiroError.authenticationFailed(
+                reason: "AniList Client ID is not configured. Set ANILIST_CLIENT_ID and rebuild the app."
+            )
+        }
+
         // Generate authorization URL
         guard let authURL = generateAuthorizationURL() else {
             throw KiroError.authenticationFailed(reason: "Failed to generate authorization URL")
         }
         
-        // Present authentication session
-        let authCode = try await presentAuthenticationSession(url: authURL)
-        
-        // Exchange authorization code for access token
-        let token = try await exchangeCodeForToken(code: authCode)
+        // Present authentication session. With the implicit grant, AniList
+        // returns the access token directly in the redirect URL fragment.
+        let token = try await presentAuthenticationSession(url: authURL)
         
         // Store token in keychain
         try keychainManager.save(token: token.accessToken, for: accessTokenKey)
@@ -110,14 +155,14 @@ class AuthenticationService: NSObject, AuthenticationServiceProtocol, Observable
         return token
     }
     
-    /// Generate OAuth2 authorization URL
+    /// Generate OAuth2 implicit-grant authorization URL.
+    /// AniList redirects to the redirect URI registered for the client.
     /// - Returns: URL for authorization or nil if invalid
     private func generateAuthorizationURL() -> URL? {
         var components = URLComponents(string: authorizationEndpoint)
         components?.queryItems = [
             URLQueryItem(name: "client_id", value: clientId),
-            URLQueryItem(name: "redirect_uri", value: redirectUri),
-            URLQueryItem(name: "response_type", value: "code")
+            URLQueryItem(name: "response_type", value: "token")
         ]
         
         return components?.url
@@ -125,9 +170,9 @@ class AuthenticationService: NSObject, AuthenticationServiceProtocol, Observable
     
     /// Present ASWebAuthenticationSession for OAuth flow
     /// - Parameter url: Authorization URL
-    /// - Returns: Authorization code from callback
+    /// - Returns: Access token parsed from the callback URL
     /// - Throws: KiroError if authentication fails or is cancelled
-    private func presentAuthenticationSession(url: URL) async throws -> String {
+    private func presentAuthenticationSession(url: URL) async throws -> AuthToken {
         return try await withCheckedThrowingContinuation { continuation in
             // Ensure we're on the main thread for UI operations
             DispatchQueue.main.async {
@@ -146,12 +191,12 @@ class AuthenticationService: NSObject, AuthenticationServiceProtocol, Observable
                     }
                     
                     guard let callbackURL = callbackURL,
-                          let code = self.extractAuthorizationCode(from: callbackURL) else {
-                        continuation.resume(throwing: KiroError.authenticationFailed(reason: "Failed to extract authorization code"))
+                          let token = Self.extractAccessToken(from: callbackURL) else {
+                        continuation.resume(throwing: KiroError.authenticationFailed(reason: "AniList did not return an access token. Check that the client's redirect URI is \(Config.redirectUri)."))
                         return
                     }
                     
-                    continuation.resume(returning: code)
+                    continuation.resume(returning: token)
                 }
                 
                 session.presentationContextProvider = self
@@ -164,55 +209,28 @@ class AuthenticationService: NSObject, AuthenticationServiceProtocol, Observable
         }
     }
     
-    /// Extract authorization code from callback URL
-    /// - Parameter url: Callback URL containing the code
-    /// - Returns: Authorization code or nil if not found
-    private func extractAuthorizationCode(from url: URL) -> String? {
-        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-              let queryItems = components.queryItems else {
+    /// Extract the access token from an implicit-grant callback URL.
+    /// AniList puts the token in the URL fragment:
+    /// `aniledger://auth-callback#access_token=...&token_type=Bearer&expires_in=31536000`
+    static func extractAccessToken(from url: URL) -> AuthToken? {
+        guard let fragment = URLComponents(url: url, resolvingAgainstBaseURL: false)?.fragment,
+              !fragment.isEmpty else {
             return nil
         }
-        
-        return queryItems.first(where: { $0.name == "code" })?.value
-    }
-    
-    /// Exchange authorization code for access token
-    /// - Parameter code: Authorization code from OAuth callback
-    /// - Returns: AuthToken with access token
-    /// - Throws: KiroError if token exchange fails
-    private func exchangeCodeForToken(code: String) async throws -> AuthToken {
-        var request = URLRequest(url: URL(string: tokenEndpoint)!)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        
-        let body: [String: Any] = [
-            "grant_type": "authorization_code",
-            "client_id": clientId,
-            "client_secret": clientSecret,
-            "redirect_uri": redirectUri,
-            "code": code
-        ]
-        
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw KiroError.invalidResponse
+
+        var parser = URLComponents()
+        parser.query = fragment
+        let items = parser.queryItems ?? []
+
+        guard let accessToken = items.first(where: { $0.name == "access_token" })?.value,
+              !accessToken.isEmpty else {
+            return nil
         }
-        
-        if httpResponse.statusCode != 200 {
-            throw KiroError.apiError(message: "Token exchange failed", statusCode: httpResponse.statusCode)
-        }
-        
-        let tokenResponse = try JSONDecoder().decode(TokenResponse.self, from: data)
-        
-        return AuthToken(
-            accessToken: tokenResponse.access_token,
-            tokenType: tokenResponse.token_type,
-            expiresIn: tokenResponse.expires_in
-        )
+
+        let tokenType = items.first(where: { $0.name == "token_type" })?.value ?? "Bearer"
+        let expiresIn = items.first(where: { $0.name == "expires_in" })?.value.flatMap(Int.init) ?? 0
+
+        return AuthToken(accessToken: accessToken, tokenType: tokenType, expiresIn: expiresIn)
     }
     
     // MARK: - User Profile
@@ -257,7 +275,8 @@ class AuthenticationService: NSObject, AuthenticationServiceProtocol, Observable
     
     // MARK: - Token Refresh
     
-    /// Refresh access token (AniList tokens don't expire, so this is a no-op)
+    /// Return the stored access token. AniList implicit-grant tokens last one
+    /// year and cannot be refreshed; an expired token triggers logout instead.
     /// - Returns: Current AuthToken
     /// - Throws: KiroError if token retrieval fails
     func refreshToken() async throws -> AuthToken {
@@ -293,12 +312,4 @@ extension AuthenticationService: ASWebAuthenticationPresentationContextProviding
         window.makeKeyAndOrderFront(nil)
         return window
     }
-}
-
-// MARK: - Token Response Model
-
-private struct TokenResponse: Decodable {
-    let access_token: String
-    let token_type: String
-    let expires_in: Int
 }

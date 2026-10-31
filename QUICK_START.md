@@ -4,8 +4,8 @@ Get AniLedger running in 5 minutes!
 
 ## Prerequisites
 
-- macOS 12.0 or later
-- Xcode 14.0 or later
+- macOS 26.0 or later
+- Xcode 26.0 or later
 - AniList account
 
 ## Setup Steps

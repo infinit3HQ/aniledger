@@ -7,6 +7,12 @@
 
 import Foundation
 
+extension Notification.Name {
+    /// Posted when AniList rejects the access token (expired or revoked).
+    /// AuthenticationService observes it and signs the user out.
+    static let aniListSessionExpired = Notification.Name("aniListSessionExpired")
+}
+
 protocol AniListAPIClientProtocol {
     func execute<T: Decodable>(query: GraphQLQuery) async throws -> T
     func execute<T: Decodable>(mutation: GraphQLMutation) async throws -> T
@@ -117,12 +123,16 @@ class AniListAPIClient: AniListAPIClientProtocol {
         
         // Handle authentication errors
         if httpResponse.statusCode == 401 {
-            throw KiroError.authenticationFailed(reason: "Session expired or invalid token")
+            throw sessionExpired()
         }
         
         // Handle other HTTP errors
         guard (200...299).contains(httpResponse.statusCode) else {
             let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            // AniList answers an expired or revoked token with HTTP 400 "Invalid token"
+            if errorMessage.lowercased().contains("invalid token") {
+                throw sessionExpired()
+            }
             throw KiroError.apiError(message: errorMessage, statusCode: httpResponse.statusCode)
         }
         
@@ -140,6 +150,9 @@ class AniListAPIClient: AniListAPIClientProtocol {
             let statusCode = errors.first?.status
             
             // Handle specific GraphQL error types
+            if errorMessage.lowercased().contains("invalid token") || statusCode == 401 {
+                throw sessionExpired()
+            }
             if errorMessage.lowercased().contains("authentication") || errorMessage.lowercased().contains("unauthorized") {
                 throw KiroError.authenticationFailed(reason: errorMessage)
             }
@@ -153,6 +166,20 @@ class AniListAPIClient: AniListAPIClientProtocol {
         }
         
         return data
+    }
+}
+
+// MARK: - Session Expiry
+
+extension AniListAPIClient {
+    /// Builds the invalid-token error and notifies observers. Only sent when a
+    /// token was attached, so public requests made while logged out don't
+    /// trigger a logout.
+    fileprivate func sessionExpired() -> KiroError {
+        if tokenProvider() != nil {
+            NotificationCenter.default.post(name: .aniListSessionExpired, object: nil)
+        }
+        return KiroError.authenticationFailed(reason: KiroError.invalidTokenReason)
     }
 }
 

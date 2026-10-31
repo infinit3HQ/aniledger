@@ -23,6 +23,9 @@ enum AniLedgerError: LocalizedError {
     case noInternetConnection
     case serverUnavailable
     
+    /// Reason used when AniList rejects the access token (expired or revoked).
+    static let invalidTokenReason = "Session expired or invalid token"
+
     var errorDescription: String? {
         switch self {
         case .authenticationFailed(let reason):

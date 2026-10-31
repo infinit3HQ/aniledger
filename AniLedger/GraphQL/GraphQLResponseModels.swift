@@ -131,3 +131,13 @@ struct DeleteMediaListEntryResponse: Decodable {
 struct DeletedResponse: Decodable {
     let deleted: Bool?
 }
+
+// MARK: - Media List Entry ID Response
+
+struct MediaListEntryIdResponse: Decodable {
+    let MediaList: MediaListEntryId?
+}
+
+struct MediaListEntryId: Decodable {
+    let id: Int
+}

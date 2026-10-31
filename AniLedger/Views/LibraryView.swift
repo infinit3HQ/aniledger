@@ -53,6 +53,13 @@ struct LibraryView: View {
                     listView
                 }
             }
+            .overlay(alignment: .top) {
+                if let actionError = viewModel.actionError {
+                    actionErrorBanner(actionError)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
+            .animation(.easeInOut(duration: 0.2), value: viewModel.actionError != nil)
         }
         .navigationTitle("Library")
         .searchable(text: $viewModel.searchQuery, prompt: "Search \(selectedStatus.displayName)...")
@@ -350,11 +357,50 @@ struct LibraryView: View {
             }
             
             Button("Retry") {
-                viewModel.loadLists()
+                viewModel.loadLists(forceRefresh: true)
             }
             .buttonStyle(.borderedProminent)
         }
         .padding(40)
+    }
+    
+    // MARK: - Action Error Banner
+    
+    /// Non-blocking error for failed actions or syncs; the library stays visible.
+    private func actionErrorBanner(_ error: KiroError) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundColor(.orange)
+            
+            Text(error.localizedDescription)
+                .font(.callout)
+                .lineLimit(2)
+            
+            Spacer()
+            
+            if error.isRetryable {
+                Button("Retry") {
+                    viewModel.sync()
+                }
+                .disabled(viewModel.isLoading)
+            }
+            
+            Button {
+                viewModel.dismissActionError()
+            } label: {
+                Image(systemName: "xmark")
+            }
+            .buttonStyle(.plain)
+            .help("Dismiss")
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .shadow(color: .black.opacity(0.15), radius: 6, y: 3)
+        )
+        .padding(.horizontal)
+        .padding(.top, 8)
     }
     
     // MARK: - Context Menu

@@ -25,27 +25,61 @@ VOLUME_NAME="AniLedger"
 DMG_SIZE="60m"
 TEMP_DMG_DIR="${BUILD_DIR}/dmg_temp"
 
-echo "🔨 Building ${APP_NAME} (${CONFIGURATION} mode)..."
+# ------------------------------------------------------------------------------
+# AniList client ID (public value; the app uses the implicit grant, no secret)
+# Taken from the environment, or from .env in the project root.
+# ------------------------------------------------------------------------------
+if [ -z "${ANILIST_CLIENT_ID}" ] && [ -f "${PROJECT_DIR}/.env" ]; then
+    ANILIST_CLIENT_ID=$(grep -E '^ANILIST_CLIENT_ID=' "${PROJECT_DIR}/.env" | tail -n1 | cut -d= -f2- | tr -d '"' | tr -d "'" | tr -d '[:space:]')
+fi
+
+if [ -z "${ANILIST_CLIENT_ID}" ] || [ "${ANILIST_CLIENT_ID}" = "YOUR_CLIENT_ID_HERE" ]; then
+    echo "❌ Error: ANILIST_CLIENT_ID is not set."
+    echo "   Export it or add ANILIST_CLIENT_ID=<id> to .env. Without it, the app cannot log in."
+    exit 1
+fi
+
+echo "🔨 Building ${APP_NAME} (${CONFIGURATION} mode, universal)..."
 rm -rf "${OUTPUT_DIR}"
 mkdir -p "${OUTPUT_DIR}"
 mkdir -p "${BUILD_DIR}"
 
-xcodebuild -project "${PROJECT_DIR}/AniLedger.xcodeproj" \
-    -scheme "${SCHEME_NAME}" \
-    -configuration "${CONFIGURATION}" \
-    -destination 'platform=macOS' \
-    -derivedDataPath "${DERIVED_DATA_DIR}" \
-    CODE_SIGN_IDENTITY="" \
-    CODE_SIGNING_REQUIRED=NO \
-    CODE_SIGNING_ALLOWED=NO \
-    build | xcpretty 2>/dev/null || true
-
 APP_PATH="${DERIVED_DATA_DIR}/Build/Products/${CONFIGURATION}/${APP_NAME}.app"
+
+# Remove any previous build so a failed build can't package a stale app
+rm -rf "${APP_PATH}"
+
+set -o pipefail
+XCODEBUILD_ARGS=(
+    -project "${PROJECT_DIR}/AniLedger.xcodeproj"
+    -scheme "${SCHEME_NAME}"
+    -configuration "${CONFIGURATION}"
+    -destination 'generic/platform=macOS'
+    -derivedDataPath "${DERIVED_DATA_DIR}"
+    ONLY_ACTIVE_ARCH=NO
+    CODE_SIGN_IDENTITY=""
+    CODE_SIGNING_REQUIRED=NO
+    CODE_SIGNING_ALLOWED=NO
+    build
+)
+
+if command -v xcpretty >/dev/null 2>&1; then
+    xcodebuild "${XCODEBUILD_ARGS[@]}" | xcpretty
+else
+    xcodebuild "${XCODEBUILD_ARGS[@]}"
+fi
 
 if [ ! -d "${APP_PATH}" ]; then
     echo "❌ Error: App build failed, ${APP_PATH} not found!"
     exit 1
 fi
+
+echo "🔑 Embedding AniList client ID..."
+/usr/libexec/PlistBuddy -c "Delete :AniListClientID" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :AniListClientID string ${ANILIST_CLIENT_ID}" "${APP_PATH}/Contents/Info.plist"
+
+# Re-sign ad hoc so the bundle signature covers the edited Info.plist
+codesign --force --deep --sign - "${APP_PATH}"
 
 echo "📦 Copying ${APP_NAME}.app..."
 cp -R "${APP_PATH}" "${OUTPUT_DIR}/"

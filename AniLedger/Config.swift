@@ -10,72 +10,44 @@ import Foundation
 enum Config {
     // MARK: - AniList OAuth Configuration
     
+    /// Placeholder used when no client ID has been configured.
+    static let clientIdPlaceholder = "YOUR_CLIENT_ID_HERE"
+
     /// AniList OAuth Client ID
-    /// 
-    /// **⚠️ SECURITY: DO NOT hardcode your client ID in this file for public repositories!**
     ///
-    /// This value should be provided via environment variable to keep it secure.
+    /// AniLedger uses AniList's implicit grant, which needs only the client ID.
+    /// The client ID is not a secret (it appears in the login URL), so no
+    /// client secret is shipped with the app.
     ///
-    /// **Setup Instructions:**
-    /// 
-    /// **Method 1 - Xcode Environment Variable (Recommended for Development):**
-    /// 1. In Xcode, go to: Product → Scheme → Edit Scheme...
-    /// 2. Select "Run" on the left sidebar
-    /// 3. Go to the "Arguments" tab
-    /// 4. Under "Environment Variables", click the "+" button
-    /// 5. Add: Name = `ANILIST_CLIENT_ID`, Value = `your_actual_client_id`
-    /// 6. Add: Name = `ANILIST_CLIENT_SECRET`, Value = `your_actual_client_secret`
-    /// 7. Click "Close"
+    /// Resolution order:
+    /// 1. `ANILIST_CLIENT_ID` environment variable (Xcode scheme, for development runs)
+    /// 2. `AniListClientID` key in the app's Info.plist (injected by `scripts/build-dmg.sh`)
     ///
-    /// **Method 2 - Shell Environment Variable (For Terminal/CI):**
-    /// ```bash
-    /// export ANILIST_CLIENT_ID="your_actual_client_id"
-    /// export ANILIST_CLIENT_SECRET="your_actual_client_secret"
-    /// ```
-    ///
-    /// **Method 3 - .env file (Alternative):**
-    /// 1. Create a `.env` file in the project root (it's gitignored)
-    /// 2. Add: `ANILIST_CLIENT_ID=your_actual_client_id`
-    /// 3. Add: `ANILIST_CLIENT_SECRET=your_actual_client_secret`
-    /// 4. Source it before running: `source .env && open AniLedger.xcodeproj`
-    /// 
-    /// **Get Your Client ID and Secret:**
-    /// 1. Go to https://anilist.co/settings/developer
-    /// 2. Create a new API Client
-    /// 3. Set the redirect URI to: `aniledger://auth-callback`
-    /// 4. Copy both the Client ID and Client Secret
-    ///
-    /// **Note about Client Secret:**
-    /// AniList requires the client secret for the token exchange step of OAuth.
-    /// While native apps cannot perfectly secure secrets, AniList's OAuth flow requires it.
-    /// This is a limitation of AniList's OAuth implementation.
+    /// The AniList API client must have its redirect URI set to `aniledger://auth-callback`.
     static var aniListClientId: String {
-        // Read from environment variable
         if let envClientId = ProcessInfo.processInfo.environment["ANILIST_CLIENT_ID"],
-           !envClientId.isEmpty,
-           envClientId != "YOUR_CLIENT_ID_HERE" {
-            return envClientId
+           isValidClientId(envClientId) {
+            return envClientId.trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        
-        // Fallback placeholder (will trigger validation warning)
-        // DO NOT replace this with your actual client ID in a public repository!
-        return "YOUR_CLIENT_ID_HERE"
-    }
-    
-    /// AniList OAuth Client Secret
-    /// Required for token exchange in AniList's OAuth flow
-    static var aniListClientSecret: String {
-        // Read from environment variable
-        if let envClientSecret = ProcessInfo.processInfo.environment["ANILIST_CLIENT_SECRET"],
-           !envClientSecret.isEmpty,
-           envClientSecret != "YOUR_CLIENT_SECRET_HERE" {
-            return envClientSecret
+
+        if let bundledClientId = Bundle.main.object(forInfoDictionaryKey: "AniListClientID") as? String,
+           isValidClientId(bundledClientId) {
+            return bundledClientId.trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        
-        // Fallback placeholder (will trigger validation warning)
-        return "YOUR_CLIENT_SECRET_HERE"
+
+        return clientIdPlaceholder
     }
-    
+
+    /// Whether a usable client ID is available.
+    static var isClientIdConfigured: Bool {
+        aniListClientId != clientIdPlaceholder
+    }
+
+    private static func isValidClientId(_ value: String) -> Bool {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !trimmed.isEmpty && trimmed != clientIdPlaceholder && !trimmed.hasPrefix("$(")
+    }
+
     /// OAuth Redirect URI - must match the one registered in AniList developer settings
     static let redirectUri = "aniledger://auth-callback"
     
@@ -161,8 +133,8 @@ enum Config {
     
     /// Validates that the configuration is properly set up
     static func validate() -> Bool {
-        guard aniListClientId != "YOUR_CLIENT_ID_HERE" else {
-            print("⚠️ Warning: AniList Client ID not configured. Please update Config.swift with your client ID.")
+        guard isClientIdConfigured else {
+            print("Warning: AniList Client ID not configured. Set ANILIST_CLIENT_ID (see README).")
             return false
         }
         return true

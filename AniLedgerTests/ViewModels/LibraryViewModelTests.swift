@@ -6,11 +6,13 @@
 //
 
 import XCTest
+import Combine
 import CoreData
 @testable import AniLedger
 
 @MainActor
 final class LibraryViewModelTests: XCTestCase {
+    var libraryChanges: PassthroughSubject<Void, Never>!
     var viewModel: LibraryViewModel!
     var mockAnimeService: MockAnimeService!
     var mockSyncService: MockSyncService!
@@ -20,9 +22,11 @@ final class LibraryViewModelTests: XCTestCase {
         
         mockAnimeService = MockAnimeService()
         mockSyncService = MockSyncService()
+        libraryChanges = PassthroughSubject<Void, Never>()
         viewModel = LibraryViewModel(
             animeService: mockAnimeService,
-            syncService: mockSyncService
+            syncService: mockSyncService,
+            libraryChanges: libraryChanges.eraseToAnyPublisher()
         )
     }
     
@@ -131,12 +135,43 @@ final class LibraryViewModelTests: XCTestCase {
             .dropped: []
         ]
         
-        // When
-        XCTAssertFalse(viewModel.isLoading)
+        // When - loading reads local Core Data synchronously
         viewModel.loadLists()
         
-        // Then - loading should be set immediately
-        XCTAssertTrue(viewModel.isLoading)
+        // Then - loading has finished and the lists are marked loaded
+        XCTAssertFalse(viewModel.isLoading)
+        XCTAssertNil(viewModel.error)
+    }
+    
+    func testListsReloadWhenLibraryChangesElsewhere() async throws {
+        // Given - Library loaded once
+        mockAnimeService.animeByStatus = [.watching: [], .completed: [], .planToWatch: [], .onHold: [], .dropped: []]
+        viewModel.loadLists()
+        XCTAssertEqual(viewModel.watchingList.count, 0)
+        
+        // When - Another screen or a background sync changes Core Data
+        let anime = createTestAnime(id: 2, title: "Added Elsewhere")
+        mockAnimeService.animeByStatus[.watching] = [createTestUserAnime(id: 2, anime: anime, status: .watching)]
+        libraryChanges.send(())
+        try await Task.sleep(nanoseconds: 400_000_000) // debounce is 250ms
+        
+        // Then - No manual refresh needed
+        XCTAssertEqual(viewModel.watchingList.count, 1)
+    }
+    
+    func testActionUsesCurrentEntryIdAfterSyncChangedIt() async throws {
+        // Given - The list shows a placeholder ID, but sync replaced it with AniList's entry ID
+        let anime = createTestAnime(id: 1, title: "Test Anime")
+        let staleListItem = createTestUserAnime(id: 1, anime: anime, status: .watching)
+        let syncedEntry = createTestUserAnime(id: 555, anime: anime, status: .watching)
+        mockAnimeService.animeByStatus = [.watching: [syncedEntry], .completed: [], .planToWatch: [], .onHold: [], .dropped: []]
+        
+        // When
+        viewModel.deleteAnime(staleListItem)
+        
+        // Then - The current ID is used, so no "User anime not found" error
+        XCTAssertEqual(mockAnimeService.lastDeletedAnimeId, 555)
+        XCTAssertNil(viewModel.actionError)
     }
     
     func testLoadListsHandlesError() async throws {
@@ -342,7 +377,7 @@ final class LibraryViewModelTests: XCTestCase {
         let userAnime = createTestUserAnime(id: 1, anime: anime, status: .watching)
         
         mockAnimeService.animeByStatus = [
-            .watching: [],
+            .watching: [userAnime],
             .completed: [],
             .planToWatch: [],
             .onHold: [],
@@ -479,10 +514,11 @@ final class LibraryViewModelTests: XCTestCase {
         // Wait for async operation
         try await Task.sleep(nanoseconds: 100_000_000)
         
-        // Then
-        XCTAssertNotNil(viewModel.error)
+        // Then - Shown as a banner; the local library stays visible
+        XCTAssertNotNil(viewModel.actionError)
+        XCTAssertNil(viewModel.error)
         XCTAssertFalse(viewModel.isLoading)
-        if case .networkError = viewModel.error {
+        if case .networkError = viewModel.actionError {
             // Expected error type
         } else {
             XCTFail("Expected networkError")

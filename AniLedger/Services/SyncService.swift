@@ -22,18 +22,30 @@ enum SyncOperation {
     case deleteEntry(entryId: Int? = nil, mediaId: Int)
 }
 
-// Actor for thread-safe sync state management
-private actor SyncState {
-    private var isSyncing = false
+/// Serializes sync work. Callers wait their turn instead of being skipped,
+/// so a manual refresh never silently does nothing because a background
+/// queue flush happened to be running.
+private actor SyncLock {
+    private var isLocked = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
     
-    func startSyncing() -> Bool {
-        guard !isSyncing else { return false }
-        isSyncing = true
-        return true
+    func acquire() async {
+        guard isLocked else {
+            isLocked = true
+            return
+        }
+        await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
     }
     
-    func stopSyncing() {
-        isSyncing = false
+    func release() {
+        if waiters.isEmpty {
+            isLocked = false
+        } else {
+            // Hand the lock straight to the next waiter
+            waiters.removeFirst().resume()
+        }
     }
 }
 
@@ -42,20 +54,23 @@ class SyncService: SyncServiceProtocol {
     private let coreDataStack: CoreDataStack
     private let animeService: AnimeServiceProtocol
     private let userIdProvider: () -> Int?
+    private let userLoader: (() async throws -> Void)?
     private var connectionRestoredObserver: NSObjectProtocol?
-    private let syncState = SyncState()
+    private let syncLock = SyncLock()
     private var syncQueueTask: Task<Void, Never>?
     
     init(
         apiClient: AniListAPIClientProtocol,
         coreDataStack: CoreDataStack = .shared,
         animeService: AnimeServiceProtocol,
-        userIdProvider: @escaping () -> Int?
+        userIdProvider: @escaping () -> Int?,
+        userLoader: (() async throws -> Void)? = nil
     ) {
         self.apiClient = apiClient
         self.coreDataStack = coreDataStack
         self.animeService = animeService
         self.userIdProvider = userIdProvider
+        self.userLoader = userLoader
         
         // Listen for network connection restoration
         setupNetworkObserver()
@@ -88,22 +103,59 @@ class SyncService: SyncServiceProtocol {
         }
     }
     
-    // MARK: - Initial Sync
+    // MARK: - Sync Lock
     
-    /// Performs initial sync on login - fetches all user anime lists from AniList
+    // Each public sync entry point waits for the lock, runs its work, and
+    // releases the lock before returning. Calls run one after another.
+
     func syncAll() async throws {
-        // Prevent concurrent sync operations
-        guard await syncState.startSyncing() else {
-            return
+        await syncLock.acquire()
+        do {
+            try await performSyncAll()
+        } catch {
+            await syncLock.release()
+            throw error
         }
-        
-        defer {
-            Task {
-                await syncState.stopSyncing()
-            }
+        await syncLock.release()
+    }
+
+    func syncUserLists() async throws {
+        await syncLock.acquire()
+        do {
+            try await performSyncUserLists()
+        } catch {
+            await syncLock.release()
+            throw error
         }
-        
-        // Check network connectivity
+        await syncLock.release()
+    }
+
+    func processSyncQueue() async throws {
+        await syncLock.acquire()
+        do {
+            try await performProcessSyncQueue()
+        } catch {
+            await syncLock.release()
+            throw error
+        }
+        await syncLock.release()
+    }
+    
+    /// The signed-in user's AniList ID. Loads the profile first if it isn't
+    /// available yet (e.g. the app launched offline), instead of failing with
+    /// "User not authenticated" until the next launch.
+    private func resolveUserId() async throws -> Int {
+        if let userId = userIdProvider() {
+            return userId
+        }
+        try await userLoader?()
+        guard let userId = userIdProvider() else {
+            throw KiroError.authenticationFailed(reason: "User not authenticated")
+        }
+        return userId
+    }
+    
+    private func requireNetwork() throws {
         guard NetworkMonitor.shared.isConnected else {
             throw KiroError.networkError(underlying: NSError(
                 domain: "SyncService",
@@ -111,21 +163,27 @@ class SyncService: SyncServiceProtocol {
                 userInfo: [NSLocalizedDescriptionKey: "No network connection"]
             ))
         }
+    }
+    
+    // MARK: - Initial Sync
+    
+    /// Performs initial sync on login - fetches all user anime lists from AniList
+    private func performSyncAll() async throws {
+        try requireNetwork()
         
-        guard let userId = userIdProvider() else {
-            throw KiroError.authenticationFailed(reason: "User not authenticated")
-        }
+        let userId = try await resolveUserId()
         
         // Fetch all anime lists from AniList
         let query = FetchUserAnimeListQuery(userId: userId, status: nil)
         let response: MediaListCollectionResponse = try await apiClient.execute(query: query)
         
-        // Process all entries
         let context = coreDataStack.newBackgroundContext()
         
         try await context.perform {
+            let pendingDeletes = self.pendingDeleteMediaIds(context: context)
+            
             for list in response.MediaListCollection.lists {
-                for entry in list.entries {
+                for entry in list.entries where !pendingDeletes.contains(entry.media.id) {
                     try self.processRemoteEntry(entry, context: context)
                 }
             }
@@ -137,30 +195,10 @@ class SyncService: SyncServiceProtocol {
     // MARK: - Incremental Sync
     
     /// Performs incremental sync - fetches updates from AniList and merges with local changes
-    func syncUserLists() async throws {
-        // Prevent concurrent sync operations
-        guard await syncState.startSyncing() else {
-            return
-        }
+    private func performSyncUserLists() async throws {
+        try requireNetwork()
         
-        defer {
-            Task {
-                await syncState.stopSyncing()
-            }
-        }
-        
-        // Check network connectivity
-        guard NetworkMonitor.shared.isConnected else {
-            throw KiroError.networkError(underlying: NSError(
-                domain: "SyncService",
-                code: 3001,
-                userInfo: [NSLocalizedDescriptionKey: "No network connection"]
-            ))
-        }
-        
-        guard let userId = userIdProvider() else {
-            throw KiroError.authenticationFailed(reason: "User not authenticated")
-        }
+        let userId = try await resolveUserId()
         
         // Fetch all anime lists from AniList
         let query = FetchUserAnimeListQuery(userId: userId, status: nil)
@@ -173,6 +211,9 @@ class SyncService: SyncServiceProtocol {
             let localUserAnime = self.coreDataStack.fetchAllUserAnime(context: context)
             let localAnimeIds = Set(localUserAnime.map { Int($0.animeId) })
             
+            // Entries deleted locally but not yet deleted on AniList must not be re-added
+            let pendingDeletes = self.pendingDeleteMediaIds(context: context)
+            
             // Track remote anime IDs
             var remoteAnimeIds = Set<Int>()
             
@@ -180,6 +221,7 @@ class SyncService: SyncServiceProtocol {
             for list in response.MediaListCollection.lists {
                 for entry in list.entries {
                     remoteAnimeIds.insert(entry.media.id)
+                    guard !pendingDeletes.contains(entry.media.id) else { continue }
                     try self.processRemoteEntry(entry, context: context)
                 }
             }
@@ -202,79 +244,196 @@ class SyncService: SyncServiceProtocol {
     
     // MARK: - Sync Queue Processing
     
-    /// Processes queued operations when connection is restored
-    func processSyncQueue() async throws {
-        // Check if already syncing
-        guard await syncState.startSyncing() else {
-            return
-        }
-        
-        // Check network connectivity - silently return if offline
-        guard NetworkMonitor.shared.isConnected else {
-            await syncState.stopSyncing()
-            return
-        }
-        
-        defer {
-            Task {
-                await syncState.stopSyncing()
-            }
-        }
+    /// Snapshot of a queue item, read inside the context's queue.
+    private struct QueueItemSnapshot {
+        /// Changes every time the item is updated; used to detect edits made while a request was in flight.
+        let version: UUID?
+        let operation: String
+        let mediaId: Int
+        let change: QueuedChange
+    }
+    
+    /// Processes queued operations when connection is restored.
+    ///
+    /// - Transient failures (offline, timeout, rate limit, server error) stop
+    ///   processing and leave the queue untouched for the next attempt.
+    /// - Permanent failures (e.g. AniList rejects the request) count toward
+    ///   `maxQueueRetries`. When an item is dropped, the entry's `needsSync`
+    ///   flag is cleared so the next sync restores AniList's values instead of
+    ///   leaving the entry stuck.
+    /// - An expired or revoked token is rethrown so the caller can sign out.
+    private func performProcessSyncQueue() async throws {
+        // Silently return if offline
+        guard NetworkMonitor.shared.isConnected else { return }
         
         let context = coreDataStack.newBackgroundContext()
         
-        let queueItems = await context.perform {
-            self.coreDataStack.fetchSyncQueue(context: context)
+        let snapshots: [QueueItemSnapshot] = await context.perform {
+            self.coreDataStack.fetchSyncQueue(context: context).map { item in
+                QueueItemSnapshot(
+                    version: item.id,
+                    operation: item.operation ?? "",
+                    mediaId: Int(item.entityId),
+                    change: QueuedChange(payload: item.payload)
+                )
+            }
         }
         
-        // If queue is empty, return early
-        guard !queueItems.isEmpty else {
-            return
-        }
-        
-        for item in queueItems {
-            let itemId = item.objectID
+        for snapshot in snapshots {
             do {
-                try await processQueueItem(item, context: context)
+                let remoteEntryId = try await sendQueuedChange(snapshot)
                 
-                // Delete successfully processed item
                 await context.perform {
-                    if let itemToDelete = try? context.existingObject(with: itemId) as? SyncQueueEntity {
-                        context.delete(itemToDelete)
-                        try? context.save()
-                    }
+                    self.finishQueueItem(snapshot, remoteEntryId: remoteEntryId, context: context)
                 }
             } catch {
-                // Increment retry count
-                await context.perform {
-                    if let itemToUpdate = try? context.existingObject(with: itemId) as? SyncQueueEntity {
-                        itemToUpdate.retryCount += 1
-                        
-                        // Remove item if max retries exceeded
-                        if itemToUpdate.retryCount >= 5 {
-                            context.delete(itemToUpdate)
-                        }
-                        
-                        try? context.save()
-                    }
+                if let kiroError = error as? KiroError, AuthenticationService.isInvalidTokenError(kiroError) {
+                    throw error
+                }
+                if Self.isTransient(error) {
+                    // Try again later; later items would most likely fail the same way
+                    return
                 }
                 
-                // Continue processing other items
-                continue
+                await context.perform {
+                    self.recordPermanentFailure(snapshot, error: error, context: context)
+                }
             }
         }
     }
     
+    /// Sends one queued change to AniList.
+    /// - Returns: The remote list entry ID for saves, nil for deletes.
+    private func sendQueuedChange(_ snapshot: QueueItemSnapshot) async throws -> Int? {
+        if snapshot.operation == QueuedChange.deleteOperation {
+            try await deleteRemoteEntry(mediaId: snapshot.mediaId)
+            return nil
+        }
+        
+        let change = snapshot.change
+        guard change.status != nil || change.progress != nil || change.score != nil else {
+            throw KiroError.decodingError(underlying: NSError(
+                domain: "SyncService",
+                code: 2001,
+                userInfo: [NSLocalizedDescriptionKey: "Queue item has no changes to send"]
+            ))
+        }
+        
+        let mutation = SaveMediaListEntryMutation(
+            mediaId: snapshot.mediaId,
+            status: change.status,
+            progress: change.progress,
+            score: change.score
+        )
+        let response: SaveMediaListEntryResponse = try await apiClient.execute(mutation: mutation)
+        return response.SaveMediaListEntry.id
+    }
+    
+    /// Deletes the user's AniList entry for a media item.
+    ///
+    /// The entry ID is looked up from AniList because entries added offline
+    /// only have a local placeholder ID. If AniList has no entry, there is
+    /// nothing to delete and the operation succeeds.
+    private func deleteRemoteEntry(mediaId: Int) async throws {
+        // If the profile can't be loaded, the error is transient and the delete is retried later
+        let userId = try await resolveUserId()
+        
+        let entryId: Int
+        do {
+            let response: MediaListEntryIdResponse = try await apiClient.execute(
+                query: FetchMediaListEntryIdQuery(userId: userId, mediaId: mediaId)
+            )
+            guard let id = response.MediaList?.id else { return }
+            entryId = id
+        } catch KiroError.apiError(_, let statusCode) where statusCode == 404 {
+            return
+        }
+        
+        let mutation = DeleteMediaListEntryMutation(id: entryId)
+        let _: DeleteMediaListEntryResponse = try await apiClient.execute(mutation: mutation)
+    }
+    
+    /// Removes a processed queue item, unless it was updated while the request
+    /// was in flight (in which case the newer change is sent on the next pass).
+    private func finishQueueItem(_ snapshot: QueueItemSnapshot, remoteEntryId: Int?, context: NSManagedObjectContext) {
+        let currentItem = snapshot.version.flatMap { coreDataStack.fetchSyncQueueItem(byId: $0, context: context) }
+        let itemUnchanged = currentItem != nil
+        
+        if let currentItem = currentItem {
+            context.delete(currentItem)
+        }
+        
+        if let userAnime = coreDataStack.fetchUserAnime(byAnimeId: Int64(snapshot.mediaId), context: context) {
+            if let remoteEntryId = remoteEntryId {
+                userAnime.id = Int64(remoteEntryId)
+            }
+            if itemUnchanged {
+                userAnime.needsSync = false
+            }
+        }
+        
+        try? context.save()
+    }
+    
+    private func recordPermanentFailure(_ snapshot: QueueItemSnapshot, error: Error, context: NSManagedObjectContext) {
+        // Look the item up by version in the store: if queueOperation() updated it
+        // meanwhile, the version changed and the new version gets its own retries.
+        guard let version = snapshot.version,
+              let item = coreDataStack.fetchSyncQueueItem(byId: version, context: context) else {
+            return
+        }
+        
+        item.retryCount += 1
+        
+        if item.retryCount >= Self.maxQueueRetries {
+            print("SyncService: dropping \(snapshot.operation) for media \(snapshot.mediaId) after \(item.retryCount) failures: \(error.localizedDescription)")
+            context.delete(item)
+            
+            // Let the next sync restore AniList's values for this entry
+            if let userAnime = coreDataStack.fetchUserAnime(byAnimeId: Int64(snapshot.mediaId), context: context) {
+                userAnime.needsSync = false
+            }
+        }
+        
+        try? context.save()
+    }
+    
+    private static let maxQueueRetries = 5
+    
+    /// Errors that will likely succeed if retried later without any change.
+    private static func isTransient(_ error: Error) -> Bool {
+        guard let kiroError = error as? KiroError else {
+            return (error as NSError).domain == NSURLErrorDomain
+        }
+        
+        switch kiroError {
+        case .networkError, .noInternetConnection, .timeout, .serverUnavailable, .rateLimitExceeded, .authenticationFailed:
+            return true
+        case .apiError(_, let statusCode):
+            guard let code = statusCode else { return false }
+            return code == 429 || code >= 500
+        default:
+            return false
+        }
+    }
+    
+    /// Media IDs with a queued delete that hasn't reached AniList yet.
+    private func pendingDeleteMediaIds(context: NSManagedObjectContext) -> Set<Int> {
+        Set(coreDataStack.fetchSyncQueue(context: context)
+            .filter { $0.operation == QueuedChange.deleteOperation }
+            .map { Int($0.entityId) })
+    }
+    
     // MARK: - Queue Operation
     
-    /// Queues an operation for later sync when offline
+    /// Queues an operation for later sync.
+    ///
+    /// There is at most one queue item per media ID. New edits are merged into
+    /// the existing item (e.g. an offline progress change followed by a score
+    /// change sends both), and a delete replaces any pending edits.
     func queueOperation(_ operation: SyncOperation) {
         let context = coreDataStack.viewContext
         
-        // Check if there's already a pending operation for this entity
-        let existingItems = coreDataStack.fetchSyncQueue(context: context)
-        
-        // Extract mediaId from operation
         let mediaId: Int
         switch operation {
         case .updateProgress(let id, _, _), .updateStatus(let id, _), .updateScore(let id, _):
@@ -283,110 +442,59 @@ class SyncService: SyncServiceProtocol {
             mediaId = id
         }
         
-        // Check if there's already a queue item for this media
-        if let existingItem = existingItems.first(where: { $0.entityId == Int64(mediaId) }) {
-            // Update the existing item instead of creating a new one
-            updateQueueItem(existingItem, with: operation, context: context)
-            try? coreDataStack.saveContext()
-            return
+        let existingItem = coreDataStack.fetchSyncQueue(context: context)
+            .first(where: { $0.entityId == Int64(mediaId) })
+        
+        let queueItem = existingItem ?? SyncQueueEntity(context: context)
+        let existingChange: QueuedChange
+        if let existingItem = existingItem, existingItem.operation != QueuedChange.deleteOperation {
+            existingChange = QueuedChange(payload: existingItem.payload)
+        } else {
+            existingChange = QueuedChange()
         }
         
-        let queueItem = SyncQueueEntity(context: context)
+        let change: QueuedChange
+        let operationName: String
+        
+        switch operation {
+        case .updateProgress(_, let progress, let status):
+            var merged = existingChange
+            merged.progress = progress
+            if let status = status { merged.status = status }
+            change = merged
+            operationName = merged.operationName
+            
+        case .updateStatus(_, let status):
+            var merged = existingChange
+            merged.status = status
+            change = merged
+            operationName = merged.operationName
+            
+        case .updateScore(_, let score):
+            var merged = existingChange
+            merged.score = score
+            change = merged
+            operationName = merged.operationName
+            
+        case .deleteEntry(let entryId, _):
+            change = QueuedChange(entryId: entryId)
+            operationName = QueuedChange.deleteOperation
+        }
+        
+        // A new UUID marks this as a new version of the item, so an in-flight
+        // request for the previous version doesn't delete it on completion.
         queueItem.id = UUID()
         queueItem.createdAt = Date()
         queueItem.retryCount = 0
-        
-        switch operation {
-        case .updateProgress(let mediaId, let progress, let status):
-            queueItem.operation = "updateProgress"
-            queueItem.entityType = "UserAnime"
-            queueItem.entityId = Int64(mediaId)
-            
-            let payload: [String: Any] = [
-                "mediaId": mediaId,
-                "progress": progress,
-                "status": status as Any
-            ]
-            queueItem.payload = try? JSONSerialization.data(withJSONObject: payload).base64EncodedString()
-            
-        case .updateStatus(let mediaId, let status):
-            queueItem.operation = "updateStatus"
-            queueItem.entityType = "UserAnime"
-            queueItem.entityId = Int64(mediaId)
-            
-            let payload: [String: Any] = [
-                "mediaId": mediaId,
-                "status": status
-            ]
-            queueItem.payload = try? JSONSerialization.data(withJSONObject: payload).base64EncodedString()
-            
-        case .updateScore(let mediaId, let score):
-            queueItem.operation = "updateScore"
-            queueItem.entityType = "UserAnime"
-            queueItem.entityId = Int64(mediaId)
-            
-            let payload: [String: Any] = [
-                "mediaId": mediaId,
-                "score": score
-            ]
-            queueItem.payload = try? JSONSerialization.data(withJSONObject: payload).base64EncodedString()
-            
-        case .deleteEntry(let entryId, let mediaId):
-            queueItem.operation = "deleteEntry"
-            queueItem.entityType = "UserAnime"
-            queueItem.entityId = Int64(mediaId)
-            
-            var payload: [String: Any] = ["mediaId": mediaId]
-            if let entryId = entryId {
-                payload["entryId"] = entryId
-            }
-            queueItem.payload = try? JSONSerialization.data(withJSONObject: payload).base64EncodedString()
-        }
+        queueItem.entityType = "UserAnime"
+        queueItem.entityId = Int64(mediaId)
+        queueItem.operation = operationName
+        queueItem.payload = change.encodedPayload(mediaId: mediaId)
         
         try? coreDataStack.saveContext()
     }
     
     // MARK: - Private Helper Methods
-    
-    private func updateQueueItem(_ queueItem: SyncQueueEntity, with operation: SyncOperation, context: NSManagedObjectContext) {
-        switch operation {
-        case .updateProgress(let mediaId, let progress, let status):
-            queueItem.operation = "updateProgress"
-            let payload: [String: Any] = [
-                "mediaId": mediaId,
-                "progress": progress,
-                "status": status as Any
-            ]
-            queueItem.payload = try? JSONSerialization.data(withJSONObject: payload).base64EncodedString()
-            
-        case .updateStatus(let mediaId, let status):
-            queueItem.operation = "updateStatus"
-            let payload: [String: Any] = [
-                "mediaId": mediaId,
-                "status": status
-            ]
-            queueItem.payload = try? JSONSerialization.data(withJSONObject: payload).base64EncodedString()
-            
-        case .updateScore(let mediaId, let score):
-            queueItem.operation = "updateScore"
-            let payload: [String: Any] = [
-                "mediaId": mediaId,
-                "score": score
-            ]
-            queueItem.payload = try? JSONSerialization.data(withJSONObject: payload).base64EncodedString()
-            
-        case .deleteEntry(let entryId, let mediaId):
-            queueItem.operation = "deleteEntry"
-            var payload: [String: Any] = ["mediaId": mediaId]
-            if let entryId = entryId {
-                payload["entryId"] = entryId
-            }
-            queueItem.payload = try? JSONSerialization.data(withJSONObject: payload).base64EncodedString()
-        }
-        
-        queueItem.createdAt = Date()
-        queueItem.retryCount = 0
-    }
     
     private func processRemoteEntry(_ entry: MediaListEntry, context: NSManagedObjectContext) throws {
         // Create or update anime entity
@@ -421,109 +529,6 @@ class SyncService: SyncServiceProtocol {
             userAnimeEntity.needsSync = false
             userAnimeEntity.lastModified = Date()
             userAnimeEntity.anime = animeEntity
-        }
-    }
-    
-    private func processQueueItem(_ item: SyncQueueEntity, context: NSManagedObjectContext) async throws {
-        guard let payloadString = item.payload,
-              let payloadData = Data(base64Encoded: payloadString),
-              let payload = try? JSONSerialization.jsonObject(with: payloadData) as? [String: Any] else {
-            throw KiroError.decodingError(underlying: NSError(
-                domain: "SyncService",
-                code: 2001,
-                userInfo: [NSLocalizedDescriptionKey: "Invalid queue item payload"]
-            ))
-        }
-        
-        switch item.operation {
-        case "updateProgress":
-            guard let mediaId = payload["mediaId"] as? Int,
-                  let progress = payload["progress"] as? Int else {
-                throw KiroError.decodingError(underlying: NSError(
-                    domain: "SyncService",
-                    code: 2002,
-                    userInfo: [NSLocalizedDescriptionKey: "Invalid updateProgress payload"]
-                ))
-            }
-            
-            let status = payload["status"] as? String
-            
-            let mutation = UpdateProgressMutation(mediaId: mediaId, progress: progress, status: status)
-            let response: SaveMediaListEntryResponse = try await apiClient.execute(mutation: mutation)
-            let remoteEntryId = response.SaveMediaListEntry.id
-            
-            // Update local needsSync flag and entry id
-            await context.perform {
-                if let userAnime = self.coreDataStack.fetchUserAnime(byAnimeId: Int64(mediaId), context: context) {
-                    userAnime.id = Int64(remoteEntryId)
-                    userAnime.needsSync = false
-                    try? context.save()
-                }
-            }
-            
-        case "updateStatus":
-            guard let mediaId = payload["mediaId"] as? Int,
-                  let status = payload["status"] as? String else {
-                throw KiroError.decodingError(underlying: NSError(
-                    domain: "SyncService",
-                    code: 2003,
-                    userInfo: [NSLocalizedDescriptionKey: "Invalid updateStatus payload"]
-                ))
-            }
-            
-            let mutation = UpdateStatusMutation(mediaId: mediaId, status: status)
-            let response: SaveMediaListEntryResponse = try await apiClient.execute(mutation: mutation)
-            let remoteEntryId = response.SaveMediaListEntry.id
-            
-            // Update local needsSync flag and entry id
-            await context.perform {
-                if let userAnime = self.coreDataStack.fetchUserAnime(byAnimeId: Int64(mediaId), context: context) {
-                    userAnime.id = Int64(remoteEntryId)
-                    userAnime.needsSync = false
-                    try? context.save()
-                }
-            }
-            
-        case "updateScore":
-            guard let mediaId = payload["mediaId"] as? Int,
-                  let score = payload["score"] as? Double else {
-                throw KiroError.decodingError(underlying: NSError(
-                    domain: "SyncService",
-                    code: 2004,
-                    userInfo: [NSLocalizedDescriptionKey: "Invalid updateScore payload"]
-                ))
-            }
-            
-            let mutation = UpdateScoreMutation(mediaId: mediaId, score: score)
-            let response: SaveMediaListEntryResponse = try await apiClient.execute(mutation: mutation)
-            let remoteEntryId = response.SaveMediaListEntry.id
-            
-            // Update local needsSync flag and entry id
-            await context.perform {
-                if let userAnime = self.coreDataStack.fetchUserAnime(byAnimeId: Int64(mediaId), context: context) {
-                    userAnime.id = Int64(remoteEntryId)
-                    userAnime.needsSync = false
-                    try? context.save()
-                }
-            }
-            
-        case "deleteEntry":
-            guard let mediaId = payload["mediaId"] as? Int else {
-                throw KiroError.decodingError(underlying: NSError(
-                    domain: "SyncService",
-                    code: 2005,
-                    userInfo: [NSLocalizedDescriptionKey: "Invalid deleteEntry payload"]
-                ))
-            }
-            
-            let entryId = payload["entryId"] as? Int
-            if let idToDelete = entryId, idToDelete > 0 {
-                let mutation = DeleteMediaListEntryMutation(id: idToDelete)
-                let _: DeleteMediaListEntryResponse = try await apiClient.execute(mutation: mutation)
-            }
-            
-        default:
-            throw KiroError.apiError(message: "Unknown operation type", statusCode: nil)
         }
     }
     
@@ -599,5 +604,62 @@ class SyncService: SyncServiceProtocol {
             synopsis: media.description,
             siteUrl: media.siteUrl
         )
+    }
+}
+
+// MARK: - Queued Change
+
+/// The fields a queue item will send to AniList. Stored as base64-encoded
+/// JSON in `SyncQueueEntity.payload` (same format as earlier versions, so
+/// items queued before an upgrade are still processed).
+private struct QueuedChange {
+    static let deleteOperation = "deleteEntry"
+    
+    var status: String?
+    var progress: Int?
+    var score: Double?
+    var entryId: Int?
+    
+    init(status: String? = nil, progress: Int? = nil, score: Double? = nil, entryId: Int? = nil) {
+        self.status = status
+        self.progress = progress
+        self.score = score
+        self.entryId = entryId
+    }
+    
+    init(payload: String?) {
+        guard let payload = payload,
+              let data = Data(base64Encoded: payload),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            self.init()
+            return
+        }
+        
+        self.init(
+            status: json["status"] as? String,
+            progress: (json["progress"] as? NSNumber)?.intValue,
+            score: (json["score"] as? NSNumber)?.doubleValue,
+            entryId: (json["entryId"] as? NSNumber)?.intValue
+        )
+    }
+    
+    /// Operation name stored on the queue item. Single-field changes keep the
+    /// original names; combined changes are stored as "saveEntry".
+    var operationName: String {
+        switch (status != nil, progress != nil, score != nil) {
+        case (_, true, false): return "updateProgress"
+        case (true, false, false): return "updateStatus"
+        case (false, false, true): return "updateScore"
+        default: return "saveEntry"
+        }
+    }
+    
+    func encodedPayload(mediaId: Int) -> String? {
+        var json: [String: Any] = ["mediaId": mediaId]
+        if let status = status { json["status"] = status }
+        if let progress = progress { json["progress"] = progress }
+        if let score = score { json["score"] = score }
+        if let entryId = entryId { json["entryId"] = entryId }
+        return try? JSONSerialization.data(withJSONObject: json).base64EncodedString()
     }
 }

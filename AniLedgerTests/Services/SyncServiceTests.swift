@@ -383,12 +383,12 @@ final class SyncServiceTests: XCTestCase {
         XCTAssertEqual(remainingQueueItems.count, 0)
     }
     
-    func testProcessSyncQueueIncrementsRetryCountOnFailure() async throws {
+    func testProcessSyncQueueIncrementsRetryCountOnPermanentFailure() async throws {
         // Given - Queue an operation
         syncService.queueOperation(.updateProgress(mediaId: 1, progress: 5, status: nil))
         
-        // Given - Mock API error
-        mockAPIClient.shouldThrowError = KiroError.networkError(underlying: NSError(domain: "Test", code: 1))
+        // Given - AniList rejects the request
+        mockAPIClient.shouldThrowError = KiroError.apiError(message: "Validation error", statusCode: 400)
         
         // When
         try await syncService.processSyncQueue()
@@ -399,7 +399,30 @@ final class SyncServiceTests: XCTestCase {
         XCTAssertEqual(queueItems[0].retryCount, 1)
     }
     
-    func testProcessSyncQueueRemovesItemAfterMaxRetries() async throws {
+    func testProcessSyncQueueKeepsItemsOnTransientFailure() async throws {
+        // Given - Two queued operations
+        syncService.queueOperation(.updateProgress(mediaId: 1, progress: 5, status: nil))
+        syncService.queueOperation(.updateProgress(mediaId: 2, progress: 10, status: nil))
+        
+        // Given - Network failure
+        mockAPIClient.shouldThrowError = KiroError.networkError(underlying: NSError(domain: "Test", code: 1))
+        
+        // When
+        try await syncService.processSyncQueue()
+        
+        // Then - Processing stops after the first failure; nothing is counted or dropped
+        XCTAssertEqual(mockAPIClient.executeMutationCallCount, 1)
+        let queueItems = coreDataStack.fetchSyncQueue()
+        XCTAssertEqual(queueItems.count, 2)
+        XCTAssertTrue(queueItems.allSatisfy { $0.retryCount == 0 })
+    }
+    
+    func testProcessSyncQueueRemovesItemAfterMaxRetriesAndClearsNeedsSync() async throws {
+        // Given - Local entry with a pending change
+        let anime = createTestAnime(id: 1, title: "Test Anime")
+        let userAnime = try animeService.addAnimeToLibrary(anime, status: .watching)
+        _ = try animeService.updateAnimeProgress(userAnime.id, progress: 5)
+        
         // Given - Queue an operation and set retry count to 4
         syncService.queueOperation(.updateProgress(mediaId: 1, progress: 5, status: nil))
         
@@ -407,25 +430,27 @@ final class SyncServiceTests: XCTestCase {
         queueItems[0].retryCount = 4
         try coreDataStack.saveContext()
         
-        // Given - Mock API error
-        mockAPIClient.shouldThrowError = KiroError.networkError(underlying: NSError(domain: "Test", code: 1))
+        // Given - AniList rejects the request
+        mockAPIClient.shouldThrowError = KiroError.apiError(message: "Validation error", statusCode: 400)
         
         // When
         try await syncService.processSyncQueue()
         
-        // Then - Item should be removed after 5th retry
-        let remainingQueueItems = coreDataStack.fetchSyncQueue()
-        XCTAssertEqual(remainingQueueItems.count, 0)
+        // Then - Item is removed after the 5th failure
+        XCTAssertEqual(coreDataStack.fetchSyncQueue().count, 0)
+        
+        // And the entry is no longer stuck: the next sync can apply AniList's values
+        let updatedAnime = try animeService.getUserAnime(byAnimeId: 1)
+        XCTAssertFalse(updatedAnime?.needsSync ?? true)
     }
     
-    func testProcessSyncQueueContinuesAfterFailure() async throws {
+    func testProcessSyncQueueContinuesAfterPermanentFailure() async throws {
         // Given - Queue multiple operations
         syncService.queueOperation(.updateProgress(mediaId: 1, progress: 5, status: nil))
         syncService.queueOperation(.updateProgress(mediaId: 2, progress: 10, status: nil))
         
-        // Given - First call fails, second succeeds
-        var callCount = 0
-        mockAPIClient.shouldThrowError = KiroError.networkError(underlying: NSError(domain: "Test", code: 1))
+        // Given - Every request is rejected
+        mockAPIClient.shouldThrowError = KiroError.apiError(message: "Validation error", statusCode: 400)
         
         // When
         try await syncService.processSyncQueue()
@@ -433,9 +458,23 @@ final class SyncServiceTests: XCTestCase {
         // Then - Both operations should be attempted
         XCTAssertEqual(mockAPIClient.executeMutationCallCount, 2)
         
-        // Both items should still be in queue due to failure
+        // Both items should still be in queue
         let queueItems = coreDataStack.fetchSyncQueue()
         XCTAssertEqual(queueItems.count, 2)
+    }
+    
+    func testProcessSyncQueueRethrowsInvalidToken() async {
+        // Given
+        syncService.queueOperation(.updateProgress(mediaId: 1, progress: 5, status: nil))
+        mockAPIClient.shouldThrowError = KiroError.authenticationFailed(reason: KiroError.invalidTokenReason)
+        
+        // When / Then - caller gets the error so it can sign the user out
+        do {
+            try await syncService.processSyncQueue()
+            XCTFail("Expected invalid token error")
+        } catch {
+            XCTAssertEqual(coreDataStack.fetchSyncQueue().count, 1)
+        }
     }
     
     func testProcessSyncQueueUpdatesNeedsSyncFlag() async throws {
@@ -507,6 +546,48 @@ final class SyncServiceTests: XCTestCase {
         XCTAssertEqual(item.operation, "deleteEntry")
         XCTAssertEqual(item.entityType, "UserAnime")
         XCTAssertEqual(item.entityId, 3)
+    }
+    
+    func testQueueOperationMergesEditsForSameMedia() {
+        // When - Offline progress change followed by a score change
+        syncService.queueOperation(.updateProgress(mediaId: 1, progress: 5, status: "CURRENT"))
+        syncService.queueOperation(.updateScore(mediaId: 1, score: 8.5))
+        
+        // Then - One item that still carries the progress change
+        let queueItems = coreDataStack.fetchSyncQueue()
+        XCTAssertEqual(queueItems.count, 1)
+        XCTAssertEqual(queueItems[0].operation, "saveEntry")
+        
+        let payloadData = Data(base64Encoded: queueItems[0].payload ?? "") ?? Data()
+        let payload = (try? JSONSerialization.jsonObject(with: payloadData)) as? [String: Any]
+        XCTAssertEqual(payload?["progress"] as? Int, 5)
+        XCTAssertEqual(payload?["status"] as? String, "CURRENT")
+        XCTAssertEqual(payload?["score"] as? Double, 8.5)
+    }
+    
+    func testQueueOperationDeleteReplacesPendingEdits() {
+        // When
+        syncService.queueOperation(.updateProgress(mediaId: 1, progress: 5, status: nil))
+        syncService.queueOperation(.deleteEntry(entryId: 99, mediaId: 1))
+        
+        // Then
+        let queueItems = coreDataStack.fetchSyncQueue()
+        XCTAssertEqual(queueItems.count, 1)
+        XCTAssertEqual(queueItems[0].operation, "deleteEntry")
+    }
+    
+    func testProcessDeleteLooksUpRemoteEntryWhenMissingOnAniList() async throws {
+        // Given - A delete for an entry AniList doesn't have (404)
+        syncService.queueOperation(.deleteEntry(mediaId: 3))
+        mockAPIClient.shouldThrowError = KiroError.apiError(message: "Not Found.", statusCode: 404)
+        
+        // When
+        try await syncService.processSyncQueue()
+        
+        // Then - Nothing to delete remotely, so the item is done
+        XCTAssertEqual(mockAPIClient.executeQueryCallCount, 1)
+        XCTAssertEqual(mockAPIClient.executeMutationCallCount, 0)
+        XCTAssertEqual(coreDataStack.fetchSyncQueue().count, 0)
     }
     
     func testQueueOperationMultipleOperations() {
