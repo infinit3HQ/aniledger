@@ -53,7 +53,7 @@
       <EnvironmentVariables>
          <EnvironmentVariable
             key = "ANILIST_CLIENT_ID"
-            value = "31238"
+            value = "55514"
             isEnabled = "YES">
          </EnvironmentVariable>
       </EnvironmentVariables>
