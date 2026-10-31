@@ -37,7 +37,6 @@ struct LibraryView: View {
         VStack(spacing: 0) {
             // Status Tabs
             statusTabBar
-                .padding(.bottom, 8)
             
             Divider()
             
@@ -114,51 +113,27 @@ struct LibraryView: View {
     
     // MARK: - Status Tab Bar
     
+    /// Compact pill tabs. They size to their content instead of stretching
+    /// across the window, so the highlight stays the size of the label.
     private var statusTabBar: some View {
-        HStack(spacing: 0) {
-            ForEach(AnimeStatus.allCases, id: \.self) { status in
-                statusTab(for: status)
-            }
-        }
-        .padding(.horizontal)
-        .padding(.top, 8)
-    }
-    
-    private func statusTab(for status: AnimeStatus) -> some View {
-        Button(action: {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                selectedStatus = status
-            }
-        }) {
-            VStack(spacing: 8) {
-                HStack(spacing: 6) {
-                    Image(systemName: statusIcon(for: status))
-                        .font(.caption)
-                    
-                    Text(status.displayName)
-                        .font(.subheadline)
-                        .fontWeight(selectedStatus == status ? .semibold : .regular)
-                    
-                    Text("\(listCount(for: status))")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(
-                            Capsule()
-                                .fill(Color.secondary.opacity(0.2))
-                        )
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(AnimeStatus.allCases, id: \.self) { status in
+                    StatusTabButton(
+                        title: status.displayName,
+                        icon: statusIcon(for: status),
+                        count: listCount(for: status),
+                        isSelected: selectedStatus == status
+                    ) {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            selectedStatus = status
+                        }
+                    }
                 }
-                .foregroundColor(selectedStatus == status ? .accentColor : .secondary)
-                
-                Rectangle()
-                    .fill(selectedStatus == status ? Color.accentColor : Color.clear)
-                    .frame(height: 2)
             }
-            .contentShape(Rectangle())
+            .padding(.horizontal)
+            .padding(.vertical, 10)
         }
-        .buttonStyle(.plain)
-        .frame(maxWidth: .infinity)
     }
     
     // MARK: - Content View
@@ -958,5 +933,51 @@ private class MockSyncService: SyncServiceProtocol {
     
     func queueOperation(_ operation: SyncOperation) {
         // No-op for preview
+    }
+}
+
+// MARK: - Status Tab Button
+
+private struct StatusTabButton: View {
+    let title: String
+    let icon: String
+    let count: Int
+    let isSelected: Bool
+    let action: () -> Void
+    
+    @State private var isHovered = false
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .imageScale(.small)
+                
+                Text(title)
+                    .fontWeight(isSelected ? .semibold : .regular)
+                
+                Text("\(count)")
+                    .font(.caption.monospacedDigit())
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1)
+                    .background(
+                        Capsule().fill(isSelected ? Color.white.opacity(0.25) : Color.secondary.opacity(0.2))
+                    )
+            }
+            .font(.subheadline)
+            .foregroundColor(isSelected ? .white : (isHovered ? .primary : .secondary))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(
+                Capsule().fill(
+                    isSelected ? Color.accentColor
+                    : (isHovered ? Color.secondary.opacity(0.15) : Color.clear)
+                )
+            )
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

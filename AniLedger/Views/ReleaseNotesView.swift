@@ -147,6 +147,17 @@ struct ReleaseNote {
     
     static let allReleases: [ReleaseNote] = [
         ReleaseNote(
+            version: "0.5.2",
+            date: "October 31, 2026",
+            features: [],
+            improvements: [
+                "Library status tabs are now compact pills: the selected list is highlighted in your accent color and the count sits inside each tab"
+            ],
+            bugFixes: [
+                "Fixed the Library tabs stretching across the whole window with an oversized underline"
+            ]
+        ),
+        ReleaseNote(
             version: "0.5.1",
             date: "October 31, 2026",
             features: [],
