@@ -32,10 +32,18 @@ class ImageCacheManager {
     
     /// Configure URLCache with appropriate memory and disk limits
     func configureCache() {
+        // An absolute directory is required: a relative diskPath is resolved
+        // against the working directory, which is "/" (not writable) when the
+        // app is opened from Finder, so images were never cached on disk.
+        let cachesDirectory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+        let directory = cachesDirectory?
+            .appendingPathComponent(Bundle.main.bundleIdentifier ?? "com.aniledger", isDirectory: true)
+            .appendingPathComponent("image_cache", isDirectory: true)
+        
         let cache = URLCache(
             memoryCapacity: memoryCapacity,
             diskCapacity: diskCapacity,
-            diskPath: "image_cache"
+            directory: directory
         )
         
         URLCache.shared = cache

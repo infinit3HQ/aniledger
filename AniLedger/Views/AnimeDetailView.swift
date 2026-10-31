@@ -8,8 +8,16 @@
 import SwiftUI
 
 struct AnimeDetailView: View {
-    @ObservedObject var viewModel: AnimeDetailViewModel
+    /// Owned by this view (StateObject), so it is created once per opened
+    /// sheet. With ObservedObject, every redraw of the screen behind the sheet
+    /// created a new view model from the stale snapshot, which reset the
+    /// progress and closed the "Complete Anime?" prompt.
+    @StateObject private var viewModel: AnimeDetailViewModel
     @Environment(\.dismiss) private var dismiss
+    
+    init(viewModel: @autoclosure @escaping () -> AnimeDetailViewModel) {
+        _viewModel = StateObject(wrappedValue: viewModel())
+    }
     
     @State private var showStatusPicker = false
     @State private var showAddToLibrarySheet = false

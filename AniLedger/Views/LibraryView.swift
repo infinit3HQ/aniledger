@@ -74,6 +74,8 @@ struct LibraryView: View {
                 } label: {
                     Label("Sort", systemImage: "arrow.up.arrow.down")
                 }
+                // Without the extra chevron it is the same size as the other toolbar buttons
+                .menuIndicator(.hidden)
                 .help("Sort list")
             }
             

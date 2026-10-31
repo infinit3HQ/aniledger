@@ -94,7 +94,7 @@ struct SeasonsView: View {
     // MARK: - Season and Year Picker
     
     private var seasonYearPicker: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 12) {
             // Season Picker
             Picker("Season", selection: $viewModel.selectedSeason) {
                 ForEach(AnimeSeason.allCases, id: \.self) { season in
@@ -103,7 +103,8 @@ struct SeasonsView: View {
                 }
             }
             .pickerStyle(.segmented)
-            .frame(maxWidth: 400)
+            .labelsHidden()
+            .fixedSize()
             .onChange(of: viewModel.selectedSeason) { _, _ in
                 viewModel.loadSeasonalAnime()
             }
@@ -111,18 +112,19 @@ struct SeasonsView: View {
             Spacer()
             
             // Year Picker
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 Button {
                     HapticFeedback.selection.trigger()
                     viewModel.decrementYear()
                 } label: {
                     Image(systemName: "chevron.left")
                 }
-                .buttonStyle(.borderless)
+                .help("Previous year")
                 
-                Text("\(viewModel.selectedYear)")
-                    .font(.headline)
-                    .frame(minWidth: 60)
+                // String(...) so the year isn't formatted as a number ("2,026")
+                Text(String(viewModel.selectedYear))
+                    .font(.headline.monospacedDigit())
+                    .frame(minWidth: 48)
                 
                 Button {
                     HapticFeedback.selection.trigger()
@@ -130,15 +132,9 @@ struct SeasonsView: View {
                 } label: {
                     Image(systemName: "chevron.right")
                 }
-                .buttonStyle(.borderless)
                 .disabled(viewModel.selectedYear >= viewModel.currentYear)
+                .help("Next year")
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.secondary.opacity(0.1))
-            )
             
             // Quick Jump to Current Season
             Button {
@@ -146,10 +142,11 @@ struct SeasonsView: View {
                 viewModel.jumpToCurrentSeason()
             } label: {
                 Text("Current")
-                    .font(.subheadline)
             }
-            .buttonStyle(.bordered)
+            .help("Jump to the current season")
         }
+        .buttonStyle(.bordered)
+        .controlSize(.large)
     }
     
     // MARK: - Helper Methods

@@ -147,6 +147,21 @@ struct ReleaseNote {
     
     static let allReleases: [ReleaseNote] = [
         ReleaseNote(
+            version: "0.5.1",
+            date: "October 31, 2026",
+            features: [],
+            improvements: [
+                "Seasons header: the season picker, year buttons and Current button now share one style and size",
+                "Discover filters: Genres and Format use the standard macOS menu button and show the number of active filters",
+                "Library toolbar: the Sort button is now the same size as the other toolbar buttons"
+            ],
+            bugFixes: [
+                "Fixed the anime detail sheet resetting progress and closing the 'Complete Anime?' prompt when you increment the last episode",
+                "Fixed the year showing as '2,026' in the Seasons header",
+                "Fixed cover images not being cached on disk, so they no longer download again on every launch"
+            ]
+        ),
+        ReleaseNote(
             version: "0.5.0",
             date: "October 31, 2026",
             features: [

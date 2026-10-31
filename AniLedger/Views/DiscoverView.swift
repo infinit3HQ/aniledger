@@ -171,21 +171,12 @@ struct FilterBar: View {
                     }
                 }
             } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "line.3.horizontal.decrease.circle")
-                    Text("Genres")
-                    if !selectedGenres.isEmpty {
-                        Text("(\(selectedGenres.count))")
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(selectedGenres.isEmpty ? Color.secondary.opacity(0.1) : Color.accentColor.opacity(0.2))
+                Label(
+                    selectedGenres.isEmpty ? "Genres" : "Genres (\(selectedGenres.count))",
+                    systemImage: "line.3.horizontal.decrease.circle"
                 )
             }
+            .tint(selectedGenres.isEmpty ? nil : .accentColor)
             
             // Format Filter Button
             Menu {
@@ -210,21 +201,12 @@ struct FilterBar: View {
                     }
                 }
             } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "tv")
-                    Text("Format")
-                    if !selectedFormats.isEmpty {
-                        Text("(\(selectedFormats.count))")
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(selectedFormats.isEmpty ? Color.secondary.opacity(0.1) : Color.accentColor.opacity(0.2))
+                Label(
+                    selectedFormats.isEmpty ? "Format" : "Format (\(selectedFormats.count))",
+                    systemImage: "tv"
                 )
             }
+            .tint(selectedFormats.isEmpty ? nil : .accentColor)
             
             Spacer()
             
@@ -236,11 +218,16 @@ struct FilterBar: View {
                     onFilterChange()
                 } label: {
                     Text("Clear All")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
                 }
+                .buttonStyle(.borderless)
+                .foregroundColor(.secondary)
             }
         }
+        // One native style for both filter menus, sized to match other headers
+        .menuStyle(.button)
+        .buttonStyle(.bordered)
+        .controlSize(.large)
+        .fixedSize(horizontal: false, vertical: true)
     }
     
     private func toggleGenre(_ genre: String) {
